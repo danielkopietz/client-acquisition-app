@@ -78,7 +78,39 @@
             <small>Hohe Opportunity</small>
           </div>
         </div>
+<div class="panel scan-form-panel">
+  <div class="panel-head">
+    <h3>Neuen Scan starten</h3>
+    <p>Lege direkt aus dem Dashboard einen neuen Scan in der Datenbank an.</p>
+  </div>
 
+  <div class="scan-form-grid">
+    <div class="form-group">
+      <label for="scanCompanyId">Company ID</label>
+      <input id="scanCompanyId" type="number" value="1" />
+    </div>
+
+    <div class="form-group">
+      <label for="scanIndustry">Branche</label>
+      <input id="scanIndustry" type="text" value="Social Media Agentur" />
+    </div>
+
+    <div class="form-group">
+      <label for="scanRegion">Region</label>
+      <input id="scanRegion" type="text" value="Ulm, Deutschland" />
+    </div>
+
+    <div class="form-group">
+      <label for="scanLeadLimit">Lead Limit</label>
+      <input id="scanLeadLimit" type="number" value="10" />
+    </div>
+  </div>
+
+  <div class="scan-form-actions">
+    <button class="btn" id="startScanBtn">Scan starten</button>
+    <p id="scanFormMessage" class="form-message">Noch kein Scan gestartet.</p>
+  </div>
+</div>
         <div class="content-grid">
           <div class="panel">
             <div class="panel-head">

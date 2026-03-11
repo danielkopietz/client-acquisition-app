@@ -31,24 +31,35 @@ const elements = {
   refreshDataBtn: document.getElementById("refreshDataBtn"),
   searchInput: document.getElementById("searchInput"),
   priorityFilter: document.getElementById("priorityFilter"),
+
+  scanCompanyId: document.getElementById("scanCompanyId"),
+  scanIndustry: document.getElementById("scanIndustry"),
+  scanRegion: document.getElementById("scanRegion"),
+  scanLeadLimit: document.getElementById("scanLeadLimit"),
+  startScanBtn: document.getElementById("startScanBtn"),
+  scanFormMessage: document.getElementById("scanFormMessage"),
 };
 
 async function fetchJson(url) {
   const response = await fetch(url);
+
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`);
   }
+
   return response.json();
 }
 
 async function loadHealth() {
   try {
     const data = await fetchJson(`${API_BASE}/health`);
+
     elements.apiStatusText.textContent = data.healthy ? "API & DB online" : "Fehler";
     elements.apiStatusDetail.textContent = data.healthy
       ? "Backend und Datenbank sind verbunden."
       : "Backend läuft, aber DB antwortet nicht.";
   } catch (error) {
+    console.error("Healthcheck Fehler:", error);
     elements.apiStatusText.textContent = "Nicht erreichbar";
     elements.apiStatusDetail.textContent = "Healthcheck konnte nicht geladen werden.";
   }
@@ -70,7 +81,7 @@ async function loadData() {
     renderLeads();
     renderScans();
   } catch (error) {
-    console.error(error);
+    console.error("Fehler beim Laden der Daten:", error);
   }
 }
 
@@ -117,6 +128,9 @@ function renderDashboard() {
         </div>
       </div>
     `;
+  } else {
+    elements.companyCard.className = "company-card empty-state";
+    elements.companyCard.textContent = "Keine Firmendaten geladen.";
   }
 
   if (state.scans.length) {
@@ -146,7 +160,7 @@ function renderLeads() {
   const priority = elements.priorityFilter.value;
 
   const filtered = state.leads.filter((lead) => {
-    const matchesSearch = !query || lead.lead_name.toLowerCase().includes(query);
+    const matchesSearch = !query || (lead.lead_name || "").toLowerCase().includes(query);
     const matchesPriority = priority === "all" || lead.priority === priority;
     return matchesSearch && matchesPriority;
   });
@@ -218,7 +232,7 @@ async function loadLeadDetail(id) {
     state.selectedLead = data;
     renderLeadDetail();
   } catch (error) {
-    console.error(error);
+    console.error("Fehler beim Laden des Lead-Details:", error);
   }
 }
 
@@ -259,7 +273,11 @@ function renderLeadDetail() {
 
     <div class="detail-section">
       <h4>Outreach Actions</h4>
-      <p>${outreach_actions.length ? outreach_actions.map(a => `${a.action_type} (${a.status})`).join(", ") : "Keine Aktionen vorhanden."}</p>
+      <p>${
+        outreach_actions && outreach_actions.length
+          ? outreach_actions.map((a) => `${a.action_type} (${a.status})`).join(", ")
+          : "Keine Aktionen vorhanden."
+      }</p>
     </div>
   `;
 
@@ -278,6 +296,41 @@ function renderLeadDetail() {
   } else {
     elements.auditDetail.className = "audit-card empty-state";
     elements.auditDetail.textContent = "Kein Audit vorhanden.";
+  }
+}
+
+async function startScan() {
+  try {
+    elements.scanFormMessage.textContent = "Scan wird gestartet...";
+
+    const payload = {
+      company_id: Number(elements.scanCompanyId.value),
+      industry: elements.scanIndustry.value.trim(),
+      region: elements.scanRegion.value.trim(),
+      lead_limit: Number(elements.scanLeadLimit.value),
+    };
+
+    const response = await fetch(`${API_BASE}/scan/start`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Fehler beim Starten des Scans");
+    }
+
+    elements.scanFormMessage.textContent = `Scan #${data.scan.id} erfolgreich angelegt.`;
+
+    await loadData();
+    activateTab("scans");
+  } catch (error) {
+    console.error("Fehler beim Starten des Scans:", error);
+    elements.scanFormMessage.textContent = `Fehler: ${error.message}`;
   }
 }
 
@@ -302,10 +355,13 @@ function initTabs() {
 function initFilters() {
   elements.searchInput.addEventListener("input", renderLeads);
   elements.priorityFilter.addEventListener("change", renderLeads);
+
   elements.refreshDataBtn.addEventListener("click", async () => {
     await loadHealth();
     await loadData();
   });
+
+  elements.startScanBtn.addEventListener("click", startScan);
 }
 
 async function init() {
