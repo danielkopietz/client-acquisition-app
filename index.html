@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KI Client Acquisition Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">AI</div>
+        <div>
+          <h2 id="sidebarCompanyName">Client Acquisition</h2>
+          <p id="sidebarPlan">SaaS Dashboard</p>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-item active" data-tab="dashboard">Dashboard</button>
+        <button class="nav-item" data-tab="leads">Leads</button>
+        <button class="nav-item" data-tab="scans">Scans</button>
+        <button class="nav-item" data-tab="audit">Audit</button>
+      </nav>
+
+      <div class="sidebar-card">
+        <p class="sidebar-label">API Status</p>
+        <h3 id="apiStatusText">Prüfung läuft...</h3>
+        <p class="sidebar-copy" id="apiStatusDetail">Warte auf Healthcheck.</p>
+      </div>
+
+      <div class="sidebar-card">
+        <p class="sidebar-label">Credits</p>
+        <h3 id="sidebarCredits">- / -</h3>
+        <p class="sidebar-copy">Verbrauchte und verfügbare Credits.</p>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">KI Client Acquisition Platform</p>
+          <h1>Agentur Dashboard</h1>
+          <p class="topbar-copy">
+            Live-Daten aus deiner API: Firmen, Leads, Scans und Audit-Informationen.
+          </p>
+        </div>
+
+        <div class="topbar-actions">
+          <button class="btn btn-secondary" id="refreshDataBtn">Daten neu laden</button>
+        </div>
+      </header>
+
+      <section id="dashboard" class="tab-content active">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <span>Companies</span>
+            <strong id="statCompanies">0</strong>
+            <small>Mandanten in der Plattform</small>
+          </div>
+
+          <div class="stat-card">
+            <span>Leads</span>
+            <strong id="statLeads">0</strong>
+            <small>Aktuell gespeicherte Leads</small>
+          </div>
+
+          <div class="stat-card">
+            <span>Scans</span>
+            <strong id="statScans">0</strong>
+            <small>Ausgeführte Scans</small>
+          </div>
+
+          <div class="stat-card">
+            <span>A-Leads</span>
+            <strong id="statALeads">0</strong>
+            <small>Hohe Opportunity</small>
+          </div>
+        </div>
+
+        <div class="content-grid">
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Firma</h3>
+              <p>Aktuell geladene Company-Daten.</p>
+            </div>
+            <div id="companyCard" class="company-card empty-state">
+              Keine Firmendaten geladen.
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Letzte Scans</h3>
+              <p>Die neuesten Scan-Läufe aus der Datenbank.</p>
+            </div>
+            <div id="scanList" class="scan-list empty-state">
+              Keine Scans vorhanden.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="leads" class="tab-content">
+        <div class="panel">
+          <div class="panel-head split">
+            <div>
+              <h3>Lead Übersicht</h3>
+              <p>Leads mit Score, Priorität und Vertriebskanal.</p>
+            </div>
+            <div class="filters">
+              <input id="searchInput" type="text" placeholder="Lead suchen..." />
+              <select id="priorityFilter">
+                <option value="all">Alle Prioritäten</option>
+                <option value="A">A</option>
+                <option value="B">B</option>
+                <option value="C">C</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Website</th>
+                  <th>Instagram</th>
+                  <th>Ads</th>
+                  <th>Score</th>
+                  <th>Priorität</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="leadsTableBody">
+                <tr>
+                  <td colspan="7" class="empty-row">Noch keine Leads geladen.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="scans" class="tab-content">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Scan Historie</h3>
+            <p>Alle gespeicherten Scans aus der Datenbank.</p>
+          </div>
+          <div id="scansTableWrap" class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Company</th>
+                  <th>Branche</th>
+                  <th>Region</th>
+                  <th>Lead Limit</th>
+                  <th>Status</th>
+                  <th>Erstellt</th>
+                </tr>
+              </thead>
+              <tbody id="scansTableBody">
+                <tr>
+                  <td colspan="7" class="empty-row">Noch keine Scans geladen.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="audit" class="tab-content">
+        <div class="content-grid">
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Lead Details</h3>
+              <p>Klicke in der Lead-Tabelle auf einen Lead.</p>
+            </div>
+            <div id="leadDetail" class="detail-card empty-state">
+              Noch kein Lead ausgewählt.
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Audit Vorschau</h3>
+              <p>Letztes Audit aus dem Backend.</p>
+            </div>
+            <div id="auditDetail" class="audit-card empty-state">
+              Noch kein Audit geladen.
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
