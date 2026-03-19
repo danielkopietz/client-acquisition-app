@@ -37,12 +37,17 @@ async function initAuth() {
         audience: CONFIG.AUTH0_AUDIENCE,
         scope: "openid profile email"
       },
-      cacheLocation: "localstorage"
+      cacheLocation: "localstorage",
+      useRefreshTokens: true
     });
 
     // Nach Redirect-Callback verarbeiten
     if (window.location.search.includes("code=") || window.location.search.includes("error=")) {
-      await auth0Client.handleRedirectCallback();
+      try {
+        await auth0Client.handleRedirectCallback();
+      } catch(cbErr) {
+        console.warn("Callback Fehler:", cbErr);
+      }
       window.history.replaceState({}, document.title, window.location.pathname);
     }
 
@@ -50,17 +55,25 @@ async function initAuth() {
 
     if (isAuthenticated) {
       currentUser = await auth0Client.getUser();
-      accessToken = await auth0Client.getTokenSilently();
+      try {
+        accessToken = await auth0Client.getTokenSilently();
+      } catch(tokenErr) {
+        console.warn("Token silent Fehler:", tokenErr);
+        accessToken = null;
+      }
       await initApp();
     } else {
-      // Nicht eingeloggt → zu Auth0 weiterleiten
       await auth0Client.loginWithRedirect();
     }
 
   } catch (err) {
     console.error("Auth0 Fehler:", err);
+    // Trotzdem App zeigen
     showLoader(false);
-    showToast("Authentifizierung fehlgeschlagen.", "error");
+    showApp();
+    setupUI();
+    bindEvents();
+    showToast("Login fehlgeschlagen – bitte Seite neu laden.", "error");
   }
 }
 
