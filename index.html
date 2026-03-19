@@ -3,231 +3,531 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>KI Client Acquisition Dashboard</title>
+  <title>Client Acquisition OS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.auth0.com/js/auth0-spa-js/2.0/auth0-spa-js.production.js"></script>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="app-shell">
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-mark">AI</div>
-        <div>
-          <h2 id="sidebarCompanyName">Client Acquisition</h2>
-          <p id="sidebarPlan">SaaS Dashboard</p>
+
+  <!-- AUTH LOADING -->
+  <div id="authLoader" class="auth-loader">
+    <div class="auth-loader-inner">
+      <div class="loader-logo">
+        <img id="loaderLogo" src="assets/Kopietz-logo.png" alt="Logo" />
+      </div>
+      <div class="loader-spinner"></div>
+      <p class="loader-text">Authentifizierung läuft…</p>
+    </div>
+  </div>
+
+  <!-- APP SHELL -->
+  <div id="appShell" class="app-shell hidden">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <img id="sidebarLogo" src="assets/Kopietz-logo.png" alt="Logo" class="sidebar-logo" />
+        <div class="brand-text">
+          <h2 id="sidebarCompanyName">Agentur</h2>
+          <span class="brand-plan" id="sidebarPlan">scale</span>
         </div>
       </div>
 
-      <nav class="nav">
-        <button class="nav-item active" data-tab="dashboard">Dashboard</button>
-        <button class="nav-item" data-tab="leads">Leads</button>
-        <button class="nav-item" data-tab="scans">Scans</button>
-        <button class="nav-item" data-tab="audit">Audit</button>
+      <nav class="sidebar-nav">
+        <button class="nav-btn active" data-view="dashboard">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          Dashboard
+        </button>
+        <button class="nav-btn" data-view="opportunities">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          Chancen
+        </button>
+        <button class="nav-btn" data-view="pipeline">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Pipeline
+        </button>
+        <button class="nav-btn" data-view="scans">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3z"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
+          Scans
+        </button>
+        <button class="nav-btn" data-view="reports">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          Reports
+        </button>
       </nav>
 
-      <div class="sidebar-card">
-        <p class="sidebar-label">API Status</p>
-        <h3 id="apiStatusText">Prüfung läuft...</h3>
-        <p class="sidebar-copy" id="apiStatusDetail">Warte auf Healthcheck.</p>
-      </div>
+      <div class="sidebar-bottom">
+        <div class="credits-card">
+          <div class="credits-header">
+            <span class="credits-label">CREDITS</span>
+            <span class="credits-value" id="sidebarCredits">–</span>
+          </div>
+          <div class="credits-bar-wrap">
+            <div class="credits-bar" id="creditsBar" style="width: 0%"></div>
+          </div>
+          <p class="credits-sub" id="creditsSub">Wird geladen…</p>
+        </div>
 
-      <div class="sidebar-card">
-        <p class="sidebar-label">Credits</p>
-        <h3 id="sidebarCredits">- / -</h3>
-        <p class="sidebar-copy">Verbrauchte und verfügbare Credits.</p>
+        <div class="sidebar-status" id="sidebarStatus">
+          <span class="status-dot" id="statusDot"></span>
+          <span id="statusText">API verbunden</span>
+        </div>
+
+        <button class="logout-btn" id="logoutBtn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Abmelden
+        </button>
       </div>
     </aside>
 
+    <!-- MAIN -->
     <main class="main">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">KI Client Acquisition Platform</p>
-          <h1>Agentur Dashboard</h1>
-          <p class="topbar-copy">
-            Live-Daten aus deiner API: Firmen, Leads, Scans und Audit-Informationen.
-          </p>
-        </div>
 
-        <div class="topbar-actions">
-          <button class="btn btn-secondary" id="refreshDataBtn">Daten neu laden</button>
+      <!-- TOPBAR -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="menu-toggle" id="menuToggle">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <div>
+            <p class="eyebrow" id="topbarEyebrow">CLIENT ACQUISITION OS</p>
+            <h1 class="topbar-title" id="topbarTitle">Dashboard</h1>
+          </div>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-stat">
+            <span class="ts-label">Leads gesamt</span>
+            <span class="ts-value" id="topbarLeads">–</span>
+          </div>
+          <div class="topbar-stat">
+            <span class="ts-label">A-Chancen</span>
+            <span class="ts-value accent" id="topbarALeads">–</span>
+          </div>
+          <div class="user-chip" id="userChip">
+            <div class="user-avatar" id="userAvatar">K</div>
+            <span id="userEmail">–</span>
+          </div>
         </div>
       </header>
 
-      <section id="dashboard" class="tab-content active">
-        <div class="stats-grid">
-          <div class="stat-card">
-            <span>Companies</span>
-            <strong id="statCompanies">0</strong>
-            <small>Mandanten in der Plattform</small>
-          </div>
+      <!-- ─── DASHBOARD VIEW ─── -->
+      <section id="dashboardView" class="view-section active">
 
-          <div class="stat-card">
-            <span>Leads</span>
-            <strong id="statLeads">0</strong>
-            <small>Aktuell gespeicherte Leads</small>
+        <!-- STATS ROW -->
+        <div class="stats-row">
+          <div class="stat-card accent-card">
+            <div class="stat-icon">🏢</div>
+            <div>
+              <h3 id="statLeads">–</h3>
+              <p>Leads gesamt</p>
+            </div>
           </div>
-
           <div class="stat-card">
-            <span>Scans</span>
-            <strong id="statScans">0</strong>
-            <small>Ausgeführte Scans</small>
+            <div class="stat-icon">👤</div>
+            <div>
+              <h3 id="statASP">–</h3>
+              <p>ASP gefunden</p>
+            </div>
           </div>
-
           <div class="stat-card">
-            <span>A-Leads</span>
-            <strong id="statALeads">0</strong>
-            <small>Hohe Opportunity</small>
+            <div class="stat-icon">📧</div>
+            <div>
+              <h3 id="statEmail">–</h3>
+              <p>E-Mail gefunden</p>
+            </div>
+          </div>
+          <div class="stat-card highlight-card">
+            <div class="stat-icon">⭐</div>
+            <div>
+              <h3 id="statALeads">–</h3>
+              <p>A-Chancen</p>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">📊</div>
+            <div>
+              <h3 id="statAvgScore">–</h3>
+              <p>Ø Sales Potential</p>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🎬</div>
+            <div>
+              <h3 id="statVideos">–</h3>
+              <p>Videos generiert</p>
+            </div>
           </div>
         </div>
-<div class="panel scan-form-panel">
-  <div class="panel-head">
-    <h3>Neuen Scan starten</h3>
-    <p>Lege direkt aus dem Dashboard einen neuen Scan in der Datenbank an.</p>
-  </div>
 
-  <div class="scan-form-grid">
-    <div class="form-group">
-      <label for="scanCompanyId">Company ID</label>
-      <input id="scanCompanyId" type="number" value="1" />
-    </div>
+        <!-- MAIN GRID -->
+        <div class="dashboard-grid">
 
-    <div class="form-group">
-      <label for="scanIndustry">Branche</label>
-      <input id="scanIndustry" type="text" value="Social Media Agentur" />
-    </div>
-
-    <div class="form-group">
-      <label for="scanRegion">Region</label>
-      <input id="scanRegion" type="text" value="Ulm, Deutschland" />
-    </div>
-
-    <div class="form-group">
-      <label for="scanLeadLimit">Lead Limit</label>
-      <input id="scanLeadLimit" type="number" value="10" />
-    </div>
-  </div>
-
-  <div class="scan-form-actions">
-    <button class="btn" id="startScanBtn">Scan starten</button>
-    <p id="scanFormMessage" class="form-message">Noch kein Scan gestartet.</p>
-  </div>
-</div>
-        <div class="content-grid">
-          <div class="panel">
-            <div class="panel-head">
-              <h3>Firma</h3>
-              <p>Aktuell geladene Company-Daten.</p>
+          <!-- SCAN STARTEN -->
+          <div class="card scan-card">
+            <div class="card-header">
+              <h2>Neuen Scan starten</h2>
+              <p class="card-sub">Suche, analysiere und bewerte potenzielle Neukunden automatisch.</p>
             </div>
-            <div id="companyCard" class="company-card empty-state">
-              Keine Firmendaten geladen.
+            <div class="scan-form">
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Branche</label>
+                  <input id="industryInput" type="text" value="Social Media Agentur" placeholder="z.B. Zahnarzt, Dachdecker" />
+                </div>
+                <div class="form-group">
+                  <label>Region</label>
+                  <input id="regionInput" type="text" value="Augsburg, Deutschland" placeholder="z.B. München, Deutschland" />
+                </div>
+                <div class="form-group form-group-sm">
+                  <label>Lead Limit</label>
+                  <input id="leadLimitInput" type="number" value="5" min="1" max="100" />
+                </div>
+              </div>
+              <div class="scan-actions">
+                <button id="startScanBtn" class="btn btn-primary btn-lg">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                  Scan starten
+                </button>
+                <div id="scanStatus" class="scan-status hidden">
+                  <div class="scan-spinner"></div>
+                  <span id="scanStatusText">Scan läuft…</span>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div class="panel">
-            <div class="panel-head">
-              <h3>Letzte Scans</h3>
-              <p>Die neuesten Scan-Läufe aus der Datenbank.</p>
+          <!-- LETZTE SCANS -->
+          <div class="card">
+            <div class="card-header">
+              <h2>Letzte Scans</h2>
+              <button class="btn btn-ghost btn-sm" id="refreshScansBtn">↻ Aktualisieren</button>
             </div>
-            <div id="scanList" class="scan-list empty-state">
-              Keine Scans vorhanden.
+            <div id="recentScans" class="scan-list">
+              <div class="empty-state">Noch keine Scans vorhanden.</div>
             </div>
           </div>
+
+          <!-- TOP LEADS -->
+          <div class="card card-wide">
+            <div class="card-header">
+              <h2>Top Chancen</h2>
+              <button class="btn btn-ghost btn-sm" onclick="switchView('opportunities')">Alle anzeigen →</button>
+            </div>
+            <div id="topLeadsPreview" class="top-leads-grid">
+              <div class="empty-state">Noch keine Leads vorhanden. Starte einen Scan.</div>
+            </div>
+          </div>
+
+          <!-- AKTIVITÄTS-FEED -->
+          <div class="card">
+            <div class="card-header">
+              <h2>Aktivität</h2>
+            </div>
+            <div id="activityFeed" class="activity-list">
+              <div class="empty-state">Noch keine Aktivitäten.</div>
+            </div>
+          </div>
+
         </div>
       </section>
 
-      <section id="leads" class="tab-content">
-        <div class="panel">
-          <div class="panel-head split">
-            <div>
-              <h3>Lead Übersicht</h3>
-              <p>Leads mit Score, Priorität und Vertriebskanal.</p>
-            </div>
-            <div class="filters">
-              <input id="searchInput" type="text" placeholder="Lead suchen..." />
-              <select id="priorityFilter">
-                <option value="all">Alle Prioritäten</option>
-                <option value="A">A</option>
-                <option value="B">B</option>
-                <option value="C">C</option>
-              </select>
-            </div>
+      <!-- ─── CHANCEN VIEW ─── -->
+      <section id="opportunitiesView" class="view-section">
+        <div class="card">
+          <div class="card-header">
+            <h2>Chancen Übersicht</h2>
+            <p class="card-sub">Alle analysierten Leads mit Scoring und Kontaktdaten.</p>
           </div>
 
+          <!-- FILTER BAR -->
+          <div class="filter-bar">
+            <div class="filter-search">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input id="searchInput" type="text" placeholder="Firma, Ansprechpartner, Ort…" />
+            </div>
+            <select id="priorityFilter" class="filter-select">
+              <option value="">Alle Prioritäten</option>
+              <option value="A">A – Hoch</option>
+              <option value="B">B – Mittel</option>
+              <option value="C">C – Niedrig</option>
+            </select>
+            <select id="statusFilter" class="filter-select">
+              <option value="">Alle Status</option>
+              <option value="new">Neu</option>
+              <option value="qualified">Qualifiziert</option>
+              <option value="video_ready">Video bereit</option>
+              <option value="sent">An Outreach übergeben</option>
+            </select>
+          </div>
+
+          <!-- QUICK FILTERS -->
+          <div class="quick-filters">
+            <button class="qf-btn active" data-filter="all">Alle</button>
+            <button class="qf-btn" data-filter="a-only">Nur A-Leads</button>
+            <button class="qf-btn" data-filter="no-ads">Ohne Meta Ads</button>
+            <button class="qf-btn" data-filter="email-ready">E-Mail vorhanden</button>
+            <button class="qf-btn" data-filter="video-ready">Video bereit</button>
+          </div>
+
+          <!-- TABLE -->
           <div class="table-wrap">
-            <table>
+            <table class="leads-table">
               <thead>
                 <tr>
-                  <th>Name</th>
+                  <th>Unternehmen</th>
+                  <th>ASP / Kontakt</th>
                   <th>Website</th>
                   <th>Instagram</th>
-                  <th>Ads</th>
-                  <th>Score</th>
-                  <th>Priorität</th>
+                  <th>Meta Ads</th>
+                  <th>Sales Potential</th>
                   <th>Status</th>
+                  <th>Prio</th>
+                  <th></th>
                 </tr>
               </thead>
-              <tbody id="leadsTableBody">
-                <tr>
-                  <td colspan="7" class="empty-row">Noch keine Leads geladen.</td>
-                </tr>
+              <tbody id="leadTableBody">
+                <tr><td colspan="9" class="empty-row">Noch keine Leads vorhanden.</td></tr>
               </tbody>
             </table>
           </div>
         </div>
       </section>
 
-      <section id="scans" class="tab-content">
-        <div class="panel">
-          <div class="panel-head">
-            <h3>Scan Historie</h3>
-            <p>Alle gespeicherten Scans aus der Datenbank.</p>
+      <!-- ─── PIPELINE VIEW ─── -->
+      <section id="pipelineView" class="view-section">
+        <div class="card">
+          <div class="card-header">
+            <h2>Pipeline</h2>
+            <p class="card-sub">Drag &amp; Drop – verschiebe Leads zwischen den Phasen.</p>
           </div>
-          <div id="scansTableWrap" class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Company</th>
-                  <th>Branche</th>
-                  <th>Region</th>
-                  <th>Lead Limit</th>
-                  <th>Status</th>
-                  <th>Erstellt</th>
-                </tr>
-              </thead>
-              <tbody id="scansTableBody">
-                <tr>
-                  <td colspan="7" class="empty-row">Noch keine Scans geladen.</td>
-                </tr>
-              </tbody>
-            </table>
+          <div id="pipelineBoard" class="pipeline-board"></div>
+        </div>
+      </section>
+
+      <!-- ─── SCANS VIEW ─── -->
+      <section id="scansView" class="view-section">
+        <div class="card">
+          <div class="card-header">
+            <h2>Alle Scans</h2>
+            <button class="btn btn-ghost btn-sm" id="refreshAllScansBtn">↻ Aktualisieren</button>
+          </div>
+          <div id="allScansTable" class="scan-list">
+            <div class="empty-state">Noch keine Scans vorhanden.</div>
           </div>
         </div>
       </section>
 
-      <section id="audit" class="tab-content">
-        <div class="content-grid">
-          <div class="panel">
-            <div class="panel-head">
-              <h3>Lead Details</h3>
-              <p>Klicke in der Lead-Tabelle auf einen Lead.</p>
-            </div>
-            <div id="leadDetail" class="detail-card empty-state">
-              Noch kein Lead ausgewählt.
+      <!-- ─── REPORTS VIEW ─── -->
+      <section id="reportsView" class="view-section">
+        <div class="reports-grid">
+          <div class="card">
+            <div class="card-header"><h2>Zusammenfassung</h2></div>
+            <div id="reportSummary" class="report-content">
+              <div class="empty-state">Noch keine Daten vorhanden.</div>
             </div>
           </div>
-
-          <div class="panel">
-            <div class="panel-head">
-              <h3>Audit Vorschau</h3>
-              <p>Letztes Audit aus dem Backend.</p>
+          <div class="card">
+            <div class="card-header"><h2>Aktivitäts-Metriken</h2></div>
+            <div id="reportMetrics" class="report-content">
+              <div class="empty-state">Noch keine Metriken.</div>
             </div>
-            <div id="auditDetail" class="audit-card empty-state">
-              Noch kein Audit geladen.
+          </div>
+          <div class="card card-wide">
+            <div class="card-header">
+              <h2>Management Report</h2>
+            </div>
+            <div class="report-actions">
+              <button class="btn btn-primary" id="downloadReportBtn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Report herunterladen
+              </button>
             </div>
           </div>
         </div>
       </section>
+
     </main>
+  </div>
+
+  <!-- ─── LEAD DETAIL DRAWER ─── -->
+  <div id="drawerOverlay" class="drawer-overlay hidden"></div>
+  <div id="detailDrawer" class="detail-drawer hidden">
+    <div class="drawer-header">
+      <div class="drawer-title-row">
+        <div>
+          <p class="eyebrow">OPPORTUNITY DETAIL</p>
+          <h2 id="drawerTitle">–</h2>
+          <div class="drawer-badges">
+            <span class="badge badge-priority" id="drawerPriority">B</span>
+            <span class="badge badge-status" id="drawerStatus">Neu</span>
+            <span class="badge badge-score" id="drawerScore">0%</span>
+          </div>
+        </div>
+        <button class="close-btn" id="closeDrawerBtn">✕</button>
+      </div>
+
+      <div class="drawer-tabs">
+        <button class="drawer-tab active" data-tab="overview">Übersicht</button>
+        <button class="drawer-tab" data-tab="analyse">Analyse</button>
+        <button class="drawer-tab" data-tab="crm">CRM</button>
+        <button class="drawer-tab" data-tab="timeline">Timeline</button>
+      </div>
+    </div>
+
+    <div class="drawer-body">
+
+      <!-- OVERVIEW TAB -->
+      <div class="tab-panel active" id="tab-overview">
+        <div class="detail-grid">
+          <div class="detail-row"><span class="detail-label">Ansprechpartner</span><span id="dAnsp">–</span></div>
+          <div class="detail-row"><span class="detail-label">Stadt</span><span id="dCity">–</span></div>
+          <div class="detail-row"><span class="detail-label">Branche</span><span id="dIndustry">–</span></div>
+          <div class="detail-row"><span class="detail-label">E-Mail</span><span id="dEmail">–</span></div>
+          <div class="detail-row"><span class="detail-label">Telefon</span><span id="dPhone">–</span></div>
+          <div class="detail-row"><span class="detail-label">Website</span><span id="dWebsite">–</span></div>
+          <div class="detail-row"><span class="detail-label">CRM Sync</span><span id="dCrmSync">Nein</span></div>
+        </div>
+
+        <div class="detail-section">
+          <h4>Warum ist der Lead kaufbar?</h4>
+          <div id="dWeaknessTags" class="tag-cloud"></div>
+        </div>
+
+        <div class="detail-section">
+          <h4>Empfohlene Services</h4>
+          <div id="dServiceTags" class="tag-cloud"></div>
+        </div>
+
+        <div class="detail-section">
+          <h4>Empfohlener Pitch</h4>
+          <div id="dPitch" class="pitch-box">–</div>
+        </div>
+
+        <div class="detail-section">
+          <h4>Empfohlener Kanal</h4>
+          <div id="dChannel" class="channel-box">–</div>
+        </div>
+      </div>
+
+      <!-- ANALYSE TAB -->
+      <div class="tab-panel hidden" id="tab-analyse">
+        <div class="score-grid">
+          <div class="score-item">
+            <span class="score-label">Website Score</span>
+            <div class="score-bar-wrap"><div class="score-bar" id="scoreWebsite"></div></div>
+            <span class="score-num" id="scoreWebsiteNum">–</span>
+          </div>
+          <div class="score-item">
+            <span class="score-label">Instagram Score</span>
+            <div class="score-bar-wrap"><div class="score-bar score-bar-ig" id="scoreIG"></div></div>
+            <span class="score-num" id="scoreIGNum">–</span>
+          </div>
+          <div class="score-item">
+            <span class="score-label">Meta Ads Score</span>
+            <div class="score-bar-wrap"><div class="score-bar score-bar-ads" id="scoreAds"></div></div>
+            <span class="score-num" id="scoreAdsNum">–</span>
+          </div>
+          <div class="score-item">
+            <span class="score-label">Sales Potential</span>
+            <div class="score-bar-wrap"><div class="score-bar score-bar-total" id="scoreTotal"></div></div>
+            <span class="score-num" id="scoreTotalNum">–</span>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h4>Weitere Details</h4>
+          <div class="detail-grid">
+            <div class="detail-row"><span class="detail-label">Meta Ads</span><span id="dAdsStatus">–</span></div>
+            <div class="detail-row"><span class="detail-label">Audit Potenzial</span><span id="dAuditPotential">–</span></div>
+            <div class="detail-row"><span class="detail-label">Priorität</span><span id="dPriorityVal">–</span></div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h4>Personalisierte Audit-Video Vorschau</h4>
+          <div id="videoPreviewBox" class="video-preview-box">
+            <div id="videoContent" class="video-placeholder">
+              <span class="video-badge">Audit Video</span>
+              <p class="video-placeholder-title">Noch nicht generiert</p>
+              <p class="video-placeholder-sub">Per Klick auf „Audit Video generieren" wird eine personalisierte Vorschau erzeugt.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h4>Marketing-Analyse</h4>
+          <div id="dMarketingAnalysis" class="analysis-box">–</div>
+        </div>
+
+        <div class="quick-actions">
+          <h4>Quick Actions</h4>
+          <div class="action-grid">
+            <button class="action-btn" id="genCallHookBtn">Cold Call Hook</button>
+            <button class="action-btn" id="genMailBtn">Erstmail Ansatz</button>
+            <button class="action-btn btn-primary-action" id="genVideoBtn">Audit Video generieren</button>
+            <button class="action-btn" id="sendOutreachBtn">An Outreach / CRM übergeben</button>
+          </div>
+          <div id="actionOutput" class="action-output hidden">
+            <p class="action-output-label">Generierter Output</p>
+            <p id="actionOutputText"></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- CRM TAB -->
+      <div class="tab-panel hidden" id="tab-crm">
+        <div class="crm-form">
+          <div class="form-group">
+            <label>Status</label>
+            <select id="crmStatus">
+              <option value="new">Neu</option>
+              <option value="qualified">Qualifiziert</option>
+              <option value="cold_call">Cold Call bereit</option>
+              <option value="in_progress">In Bearbeitung</option>
+              <option value="video_ready">Video bereit</option>
+              <option value="sent">An Outreach übergeben</option>
+              <option value="follow_up">Follow-up offen</option>
+              <option value="meeting">Termin gebucht</option>
+              <option value="won">Gewonnen</option>
+              <option value="lost">Verloren</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Verantwortlich</label>
+            <input type="text" id="crmOwner" placeholder="Dein Name" />
+          </div>
+          <div class="form-group">
+            <label>Nächster Schritt</label>
+            <input type="text" id="crmNextStep" placeholder="z.B. Anruf am Montag" />
+          </div>
+          <div class="form-group">
+            <label>Follow-up Datum</label>
+            <input type="date" id="crmFollowUp" />
+          </div>
+          <div class="form-group">
+            <label>Notizen</label>
+            <textarea id="crmNotes" rows="4" placeholder="Interne Notizen…"></textarea>
+          </div>
+          <button class="btn btn-primary" id="saveCrmBtn">Speichern</button>
+        </div>
+      </div>
+
+      <!-- TIMELINE TAB -->
+      <div class="tab-panel hidden" id="tab-timeline">
+        <div id="timelineList" class="timeline">
+          <div class="empty-state">Noch keine Aktivitäten für diesen Lead.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div id="toast" class="toast hidden">
+    <span id="toastText"></span>
   </div>
 
   <script src="app.js"></script>
