@@ -161,7 +161,8 @@ async function loadCompanyData() {
 
 async function loadStats() {
   try {
-    const data = await apiRequest("/leads/stats");
+    const companyParam3 = companyData?.id ? `?company_id=${companyData.id}` : "";
+    const data = await apiRequest(`/leads/stats${companyParam3}`);
     renderStats(data);
   } catch (err) {
     // Fallback: aus Leads berechnen
@@ -171,7 +172,8 @@ async function loadStats() {
 
 async function loadLeads(page = 1) {
   try {
-    const data = await apiRequest(`/leads?page=${page}&limit=200`);
+    const companyParam = companyData?.id ? `&company_id=${companyData.id}` : "";
+    const data = await apiRequest(`/leads?page=${page}&limit=200${companyParam}`);
     leads = Array.isArray(data) ? data : (data.leads || data.data || []);
     renderAll();
   } catch (err) {
@@ -183,7 +185,8 @@ async function loadLeads(page = 1) {
 
 async function loadScans() {
   try {
-    const data = await apiRequest("/scans?limit=10");
+    const companyParam2 = companyData?.id ? `&company_id=${companyData.id}` : "";
+    const data = await apiRequest(`/scans?limit=10${companyParam2}`);
     scans = Array.isArray(data) ? data : (data.scans || data.data || []);
     renderScans();
     renderRecentScans();
@@ -231,19 +234,11 @@ async function startScan() {
       })
     });
 
-    const scanId = scanData.id || scanData.scan_id;
+    const scanId = scanData?.scan?.id || scanData?.id || scanData?.scan_id;
     activeScanId = scanId;
     statusText.textContent = `Scan #${scanId} gestartet – analysiere Leads…`;
 
-    // 2. n8n Webhook triggern
-    await webhookRequest("/scan-start", {
-      company_id: companyData.id,
-      scan_id: scanId,
-      industry,
-      region,
-      lead_limit: leadLimit
-    });
-
+    // n8n wird bereits von der API getriggert
     addActivity("Scan gestartet", `Scan #${scanId} für "${industry}" in ${region} gestartet.`);
     showToast(`Scan #${scanId} läuft!`);
 
