@@ -83,19 +83,28 @@ async function initAuth() {
 async function initApp() {
   showLoader(true);
   try {
-    // Company-Daten laden (company_id aus user metadata oder API)
+    // 1. Company zuerst laden – alle anderen Calls brauchen company_id
     await loadCompanyData();
-    await loadStats();
-    await loadScans();
-    await loadLeads();
+
+    // 2. Parallel laden sobald company_id bekannt
+    await Promise.all([loadStats(), loadScans(), loadLeads()]);
 
     setupUI();
     bindEvents();
     showLoader(false);
     showApp();
+
+    // 3. Nochmal laden nach App-Start um sicher alles zu haben
+    setTimeout(async () => {
+      await Promise.all([loadStats(), loadScans(), loadLeads()]);
+    }, 500);
+
   } catch (err) {
     console.error("App init Fehler:", err);
     showLoader(false);
+    showApp();
+    setupUI();
+    bindEvents();
     showToast("Fehler beim Laden der Daten.", "error");
   }
 }
@@ -172,9 +181,13 @@ async function loadStats() {
 
 async function loadLeads(page = 1) {
   try {
-    const companyParam = companyData?.id ? `&company_id=${companyData.id}` : "";
+    // company_id immer mitschicken wenn vorhanden
+    const cid = companyData?.id;
+    const companyParam = cid ? `&company_id=${cid}` : "";
+    console.log("loadLeads company_id:", cid);
     const data = await apiRequest(`/leads?page=${page}&limit=200${companyParam}`);
     leads = Array.isArray(data) ? data : (data.leads || data.data || []);
+    console.log("Leads geladen:", leads.length);
     renderAll();
   } catch (err) {
     console.error("Leads laden:", err);
