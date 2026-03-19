@@ -244,7 +244,7 @@ async function startScan() {
       lead_limit: leadLimit
     });
 
-    addActivity("Scan gestartet", `Scan #${scanId} für „${industry}" in ${region} gestartet.`);
+    addActivity("Scan gestartet", `Scan #${scanId} für "${industry}" in ${region} gestartet.`);
     showToast(`Scan #${scanId} läuft!`);
 
     // 3. Polling starten
@@ -429,7 +429,7 @@ async function generateCallHook(leadId) {
   if (!lead) return;
 
   const weaknesses = lead.weakness_tags || [];
-  const hook = `„Mir ist aufgefallen, dass bei ${lead.lead_name} ${weaknesses.slice(0,2).join(" und ").toLowerCase()} sichtbar ist – das kostet täglich potenzielle Anfragen."`;
+  const hook = `"Mir ist aufgefallen, dass bei ${lead.lead_name} ${weaknesses.slice(0,2).join(" und ").toLowerCase()} sichtbar ist – das kostet täglich potenzielle Anfragen."`;
 
   document.getElementById("actionOutputText").textContent = hook;
   document.getElementById("actionOutput").classList.remove("hidden");
@@ -793,7 +793,7 @@ function renderDrawer(leadId) {
       <div class="video-placeholder">
         <span class="video-badge">Audit Video</span>
         <p class="video-placeholder-title">${lead.video_status === "pending" ? "Video wird gerendert…" : "Noch nicht generiert"}</p>
-        <p class="video-placeholder-sub">${lead.video_status === "pending" ? "Bitte warte einige Minuten." : "Per Klick auf „Audit Video generieren" wird eine personalisierte Vorschau erzeugt."}</p>
+        <p class="video-placeholder-sub">${lead.video_status === "pending" ? "Bitte warte einige Minuten." : "Per Klick auf 'Audit Video generieren' wird eine Vorschau erzeugt."}</p>
       </div>
     `;
   }
@@ -986,25 +986,31 @@ function showApp() {
 // REPORT DOWNLOAD
 // ─────────────────────────────────────────────────────────────
 function downloadReport() {
-  if (!leads.length) { showToast("Keine Daten für Report.", "error"); return; }
+  if (!leads.length) { showToast("Keine Daten fuer Report.", "error"); return; }
 
   const total = leads.length;
-  const aLeads = leads.filter(l => l.priority === "A").length;
-  const emailFound = leads.filter(l => l.findymail_email || l.email).length;
-  const avgScore = Math.round(leads.reduce((s, l) => s + (l.opportunity_score || 0), 0) / total);
-  const company = companyData?.company_name || "Agentur";
+  const aLeads = leads.filter(function(l) { return l.priority === "A"; }).length;
+  const emailFound = leads.filter(function(l) { return l.findymail_email || l.email; }).length;
+  const avgScore = Math.round(leads.reduce(function(s, l) { return s + (l.opportunity_score || 0); }, 0) / total);
+  const company = (companyData && companyData.company_name) ? companyData.company_name : "Agentur";
+  const dateStr = new Date().toLocaleDateString("de-DE");
 
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Report – ${company}</title>
-  <style>body{font-family:system-ui,sans-serif;padding:40px;color:#111}h1{color:#ff5c00}
-  .card{border:1px solid #eee;border-radius:10px;padding:16px;margin-bottom:12px}
-  strong{font-weight:700}</style></head><body>
-  <h1>${company} – Management Report</h1>
-  <p style="color:#888">${new Date().toLocaleDateString("de-DE")}</p>
-  <div class="card"><strong>Analysierte Leads:</strong> ${total}</div>
-  <div class="card"><strong>A-Chancen:</strong> ${aLeads}</div>
-  <div class="card"><strong>E-Mail gefunden:</strong> ${emailFound}</div>
-  <div class="card"><strong>Ø Sales Potential:</strong> ${avgScore}%</div>
-  </body></html>`;
+  const parts = [
+    "<!DOCTYPE html><html><head>",
+    "<meta charset='UTF-8'>",
+    "<title>Report - " + company + "</title>",
+    "<style>body{font-family:system-ui,sans-serif;padding:40px;color:#111}",
+    "h1{color:#ff5c00}.card{border:1px solid #eee;border-radius:10px;padding:16px;margin-bottom:12px}",
+    "strong{font-weight:700}</style></head><body>",
+    "<h1>" + company + " - Management Report</h1>",
+    "<p style='color:#888'>" + dateStr + "</p>",
+    "<div class='card'><strong>Analysierte Leads:</strong> " + total + "</div>",
+    "<div class='card'><strong>A-Chancen:</strong> " + aLeads + "</div>",
+    "<div class='card'><strong>E-Mail gefunden:</strong> " + emailFound + "</div>",
+    "<div class='card'><strong>Sales Potential:</strong> " + avgScore + "%</div>",
+    "</body></html>"
+  ];
+  const html = parts.join("");
 
   const blob = new Blob([html], { type: "text/html;charset=utf-8" });
   const url = URL.createObjectURL(blob);
