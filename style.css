@@ -92,13 +92,13 @@ h1,h2,h3,h4 { font-family: var(--font-head); font-weight: 700; }
   padding: 16px 14px 12px;
   border-bottom: 1px solid var(--sb-border);
 }
-.sidebar-logo { height: 24px; width: auto; filter: brightness(0) invert(1); opacity: 0.9; }
+.sidebar-logo { height: 28px; width: auto; max-width: 100px; object-fit: contain; opacity: 0.95; }
 .brand-text h2 {
   font-size: 12px; font-weight: 700;
   color: rgba(255,255,255,0.9);
   font-family: var(--font-head); line-height: 1.2;
   white-space: nowrap; overflow: hidden;
-  text-overflow: ellipsis; max-width: 130px;
+  text-overflow: ellipsis; max-width: 160px;
 }
 .brand-plan {
   font-size: 9px; font-weight: 700;
