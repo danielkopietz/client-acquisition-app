@@ -23,6 +23,8 @@ let selectedLeadId = null;
 let activeScanId = null;
 let scanPollTimer = null;
 let activeQuickFilter = "all";
+let selectedAnalysisLeadIds = [];
+let isStartingSelectedAnalysis = false;
 
 // ─────────────────────────────────────────────────────────────
 // AUTH0 INIT
@@ -187,6 +189,10 @@ async function loadLeads(page = 1) {
     console.log("loadLeads company_id:", cid);
     const data = await apiRequest(`/leads?page=${page}&limit=200${companyParam}`);
     leads = Array.isArray(data) ? data : (data.leads || data.data || []);
+    selectedAnalysisLeadIds = selectedAnalysisLeadIds.filter(id => {
+      const lead = leads.find(l => Number(l.id) === Number(id));
+      return lead && isLeadSelectable(lead);
+    });
     console.log("Leads geladen:", leads.length);
     renderAll();
   } catch (err) {
@@ -527,10 +533,10 @@ function renderStats(data) {
 function renderStatsFromLeads() {
   const total = leads.length;
   const aspFound = leads.filter(l => l.contact_person || l.managing_director).length;
-  const emailFound = leads.filter(l => l.findymail_email || l.email).length;
+  const emailFound = leads.filter(l => l.final_email || l.findymail_email || l.email).length;
   const aLeads = leads.filter(l => l.priority === "A").length;
   const avgScore = total > 0 ? Math.round(leads.reduce((s, l) => s + (l.opportunity_score || 0), 0) / total) : 0;
-  const videos = leads.filter(l => l.video_status === "completed").length;
+  const videos = leads.filter(l => l.video_status === "completed" || l.video_status === "ready" || l.video_url).length;
 
   setText("statLeads", total);
   setText("statASP", aspFound);
@@ -598,25 +604,173 @@ function scanItemHTML(s) {
   `;
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// SELECTED ANALYSIS – Lead-Auswahl für WF02
+// ─────────────────────────────────────────────────────────────
+function canUseSelectedAnalysis() {
+  return companyData?.features?.selected_analysis === true;
+}
+
+function getCreditsRemaining() {
+  if (!companyData) return 0;
+  if (companyData.credits_remaining !== undefined && companyData.credits_remaining !== null) {
+    return Number(companyData.credits_remaining) || 0;
+  }
+  return (Number(companyData.credits_total) || 0) - (Number(companyData.credits_used) || 0);
+}
+
+function isLeadSelectable(lead) {
+  const allowedStatuses = ["hubspot_imported", "new", "no_email"];
+  return !!lead && allowedStatuses.includes(lead.status || "new");
+}
+
+function toggleAnalysisLead(leadId) {
+  const id = Number(leadId);
+  const lead = leads.find(l => Number(l.id) === id);
+  if (!isLeadSelectable(lead)) return;
+
+  if (selectedAnalysisLeadIds.includes(id)) {
+    selectedAnalysisLeadIds = selectedAnalysisLeadIds.filter(x => x !== id);
+  } else {
+    selectedAnalysisLeadIds = [...new Set([...selectedAnalysisLeadIds, id])];
+  }
+
+  renderLeadTable();
+}
+
+function toggleAllVisibleAnalysisLeads() {
+  const visible = filterLeads().filter(isLeadSelectable);
+  const ids = visible.map(l => Number(l.id));
+  if (!ids.length) return;
+
+  const allSelected = ids.every(id => selectedAnalysisLeadIds.includes(id));
+  if (allSelected) {
+    selectedAnalysisLeadIds = selectedAnalysisLeadIds.filter(id => !ids.includes(id));
+  } else {
+    selectedAnalysisLeadIds = [...new Set([...selectedAnalysisLeadIds, ...ids])];
+  }
+
+  renderLeadTable();
+}
+
+function renderSelectedAnalysisToolbar() {
+  const toolbar = document.getElementById("selectedAnalysisToolbar");
+  const countEl = document.getElementById("selectedAnalysisCount");
+  const creditEl = document.getElementById("selectedAnalysisCredits");
+  const warningEl = document.getElementById("selectedAnalysisWarning");
+  const btn = document.getElementById("startSelectedAnalysisBtn");
+  const selectAllBox = document.getElementById("selectAllLeadsCheckbox");
+
+  const enabled = canUseSelectedAnalysis();
+  const remaining = getCreditsRemaining();
+  const selectedCount = selectedAnalysisLeadIds.length;
+  const hasEnoughCredits = selectedCount <= remaining;
+  const visibleSelectable = filterLeads().filter(isLeadSelectable).map(l => Number(l.id));
+  const allVisibleSelected = visibleSelectable.length > 0 && visibleSelectable.every(id => selectedAnalysisLeadIds.includes(id));
+  const someVisibleSelected = visibleSelectable.some(id => selectedAnalysisLeadIds.includes(id));
+
+  if (toolbar) toolbar.classList.toggle("hidden", !enabled);
+  if (countEl) countEl.textContent = selectedCount;
+  if (creditEl) creditEl.textContent = `${selectedCount} Credit${selectedCount === 1 ? "" : "s"}`;
+  if (warningEl) {
+    warningEl.textContent = hasEnoughCredits ? "" : `Nicht genug Credits verfügbar (${remaining} übrig).`;
+    warningEl.classList.toggle("hidden", hasEnoughCredits);
+  }
+  if (btn) {
+    btn.disabled = !enabled || selectedCount === 0 || !hasEnoughCredits || isStartingSelectedAnalysis;
+    btn.textContent = isStartingSelectedAnalysis
+      ? "Analyse startet…"
+      : selectedCount > 0
+        ? `${selectedCount} Leads analysieren`
+        : "Ausgewählte Leads analysieren";
+  }
+  if (selectAllBox) {
+    selectAllBox.checked = allVisibleSelected;
+    selectAllBox.indeterminate = !allVisibleSelected && someVisibleSelected;
+    selectAllBox.disabled = !enabled || visibleSelectable.length === 0;
+  }
+}
+
+async function startSelectedAnalysis() {
+  if (!selectedAnalysisLeadIds.length) return;
+
+  const remaining = getCreditsRemaining();
+  if (selectedAnalysisLeadIds.length > remaining) {
+    showToast(`Nicht genug Credits verfügbar. Übrig: ${remaining}`, "error");
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `${selectedAnalysisLeadIds.length} Leads analysieren?\n\n` +
+    `Es werden ${selectedAnalysisLeadIds.length} Credits verbraucht.\n` +
+    `Die Leads werden angereichert, analysiert, mit Pitchlane vorbereitet und an Instantly übergeben.`
+  );
+
+  if (!confirmed) return;
+
+  isStartingSelectedAnalysis = true;
+  renderSelectedAnalysisToolbar();
+
+  try {
+    const result = await apiRequest("/analysis/start-selected", {
+      method: "POST",
+      body: JSON.stringify({
+        lead_ids: selectedAnalysisLeadIds,
+        requested_by: currentUser?.email || null
+      })
+    });
+
+    showToast(`${result.queued_count || selectedAnalysisLeadIds.length} Leads wurden zur Analyse gestartet.`, "success");
+    addActivity("Analyse gestartet", `${result.queued_count || selectedAnalysisLeadIds.length} ausgewählte Leads wurden an WF02 übergeben.`);
+    selectedAnalysisLeadIds = [];
+    await loadCompanyData();
+    await Promise.all([loadStats(), loadLeads()]);
+  } catch (err) {
+    console.error("Selected Analysis Fehler:", err);
+    showToast(err.message || "Analyse konnte nicht gestartet werden.", "error");
+  } finally {
+    isStartingSelectedAnalysis = false;
+    renderSelectedAnalysisToolbar();
+  }
+}
+
 function renderLeadTable() {
   const tbody = document.getElementById("leadTableBody");
   let filtered = filterLeads();
+  const selectionEnabled = canUseSelectedAnalysis();
+
+  renderSelectedAnalysisToolbar();
 
   if (!filtered.length) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty-row">Keine Leads gefunden.</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="${selectionEnabled ? 10 : 9}" class="empty-row">Keine Leads gefunden.</td></tr>`;
     return;
   }
 
   tbody.innerHTML = filtered.map(l => {
-    const email = l.findymail_email || l.email || "";
+    const email = l.final_email || l.findymail_email || l.email || "";
     const contact = l.inhaber_vorname
       ? `${l.inhaber_vorname} ${l.inhaber_nachname || ""}`.trim()
       : (l.contact_person || l.managing_director || "–");
     const score = l.opportunity_score || 0;
     const scoreColor = score >= 70 ? "green" : score >= 45 ? "" : "amber";
+    const selectable = selectionEnabled && isLeadSelectable(l);
+    const checked = selectedAnalysisLeadIds.includes(Number(l.id));
+    const selectionCell = selectionEnabled ? `
+        <td class="select-cell" onclick="event.stopPropagation()">
+          <input
+            type="checkbox"
+            class="lead-select-checkbox"
+            ${selectable ? "" : "disabled"}
+            ${checked ? "checked" : ""}
+            onchange="toggleAnalysisLead(${l.id})"
+            aria-label="Lead ${esc(l.lead_name)} auswählen"
+          />
+        </td>` : "";
 
     return `
-      <tr onclick="openDrawer(${l.id})">
+      <tr onclick="openDrawer(${l.id})" class="${selectable ? "selectable-lead-row" : ""}">
+        ${selectionCell}
         <td>
           <div class="td-name">${esc(l.lead_name)}</div>
           <div class="td-city">${esc(l.city || "")}${l.industry ? ` · ${esc(l.industry)}` : ""}</div>
@@ -625,8 +779,8 @@ function renderLeadTable() {
           <div class="td-contact">${esc(contact)}</div>
           <div class="td-email">${email ? `<a href="mailto:${esc(email)}" onclick="event.stopPropagation()">${esc(email)}</a>` : "–"}</div>
         </td>
-        <td>${scoreCell(l.website_score || 0, "")}</td>
-        <td>${l.instagram_found ? `${l.instagram_followers || 0} Follower` : '<span style="color:var(--text-3)">–</span>'}</td>
+        <td>${scoreCell(l.website_score || l.pagespeed_score || 0, "")}</td>
+        <td>${l.instagram_found ? `${l.instagram_followers || 0} Follower` : '<span style="color:var(--muted)">–</span>'}</td>
         <td><span class="ads-badge ${l.ads_found ? "has-ads" : "no-ads"}">${l.ads_found ? "Aktiv" : "Keine Ads"}</span></td>
         <td>${scoreCell(score, scoreColor)}</td>
         <td>${statusBadge(l.status || l.outreach_status)}</td>
@@ -635,6 +789,8 @@ function renderLeadTable() {
       </tr>
     `;
   }).join("");
+
+  renderSelectedAnalysisToolbar();
 }
 
 function filterLeads() {
@@ -655,8 +811,8 @@ function filterLeads() {
     let matchFilter = true;
     if (activeQuickFilter === "a-only") matchFilter = l.priority === "A";
     else if (activeQuickFilter === "no-ads") matchFilter = !l.ads_found;
-    else if (activeQuickFilter === "email-ready") matchFilter = !!(l.findymail_email || l.email);
-    else if (activeQuickFilter === "video-ready") matchFilter = l.video_status === "completed";
+    else if (activeQuickFilter === "email-ready") matchFilter = !!(l.final_email || l.findymail_email || l.email);
+    else if (activeQuickFilter === "video-ready") matchFilter = l.video_status === "completed" || l.video_status === "ready" || !!l.video_url;
 
     return matchSearch && matchPriority && matchStatus && matchFilter;
   });
@@ -693,11 +849,11 @@ function renderReports() {
   const total = leads.length;
   if (!total) return;
 
-  const emailFound = leads.filter(l => l.findymail_email || l.email).length;
+  const emailFound = leads.filter(l => l.final_email || l.findymail_email || l.email).length;
   const aLeads = leads.filter(l => l.priority === "A").length;
   const noAds = leads.filter(l => !l.ads_found).length;
-  const videos = leads.filter(l => l.video_status === "completed").length;
-  const sent = leads.filter(l => l.outreach_status === "sent").length;
+  const videos = leads.filter(l => l.video_status === "completed" || l.video_status === "ready" || l.video_url).length;
+  const sent = leads.filter(l => l.outreach_status === "sent" || l.outreach_status === "active" || l.status === "outreach_active").length;
   const avgScore = Math.round(leads.reduce((s, l) => s + (l.opportunity_score || 0), 0) / total);
 
   document.getElementById("reportSummary").innerHTML = `
@@ -740,7 +896,7 @@ function renderDrawer(leadId) {
     ? `${lead.inhaber_vorname} ${lead.inhaber_nachname || ""}`.trim()
     : (lead.contact_person || lead.managing_director || "–");
 
-  const email = lead.findymail_email || lead.email || "–";
+  const email = lead.final_email || lead.findymail_email || lead.email || "–";
 
   // Header
   setText("drawerTitle", lead.lead_name);
@@ -930,6 +1086,11 @@ function bindEvents() {
   document.getElementById("priorityFilter")?.addEventListener("change", renderLeadTable);
   document.getElementById("statusFilter")?.addEventListener("change", renderLeadTable);
 
+  // Selected analysis
+  document.getElementById("selectAllLeadsCheckbox")?.addEventListener("change", toggleAllVisibleAnalysisLeads);
+  document.getElementById("startSelectedAnalysisBtn")?.addEventListener("click", startSelectedAnalysis);
+  document.getElementById("clearSelectedAnalysisBtn")?.addEventListener("click", () => { selectedAnalysisLeadIds = []; renderLeadTable(); });
+
   // Quick filters
   document.querySelectorAll(".qf-btn").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -1072,11 +1233,19 @@ function priorityBadge(p) {
 function statusBadge(s) {
   const map = {
     new: ["Neu", "badge-new"],
+    hubspot_imported: ["Bereit", "badge-new"],
+    no_email: ["Ohne E-Mail", "badge-B"],
+    processing: ["In Analyse", "badge-B"],
+    analysed: ["Analysiert", "badge-qualified"],
     qualified: ["Qualifiziert", "badge-qualified"],
+    video_requested: ["Video läuft", "badge-video"],
+    video_ready: ["Video ✓", "badge-video"],
+    outreach_active: ["Outreach", "badge-sent"],
     sent: ["Outreach", "badge-sent"],
-    video_ready: ["Video ✓", "badge-video"]
+    active: ["Outreach", "badge-sent"],
+    outreach_completed: ["Abgeschlossen", "badge-qualified"]
   };
-  const [label, cls] = map[s] || ["Neu", "badge-new"];
+  const [label, cls] = map[s] || [s || "Neu", "badge-new"];
   return `<span class="badge ${cls}">${label}</span>`;
 }
 function scoreCell(score, colorClass) {
@@ -1089,6 +1258,8 @@ function scoreCell(score, colorClass) {
 // Global helper für onclick in HTML
 window.openDrawer = openDrawer;
 window.switchView = switchView;
+window.toggleAnalysisLead = toggleAnalysisLead;
+window.toggleAllVisibleAnalysisLeads = toggleAllVisibleAnalysisLeads;
 
 // ─────────────────────────────────────────────────────────────
 // START

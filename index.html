@@ -272,11 +272,30 @@
             <button class="qf-btn" data-filter="video-ready">Video bereit</button>
           </div>
 
+          <!-- SELECTED ANALYSIS TOOLBAR -->
+          <div id="selectedAnalysisToolbar" class="selected-analysis-toolbar hidden">
+            <div class="selected-analysis-left">
+              <div class="selected-analysis-kicker">Ausgewählte Analyse</div>
+              <div class="selected-analysis-meta">
+                <strong><span id="selectedAnalysisCount">0</span> ausgewählt</strong>
+                <span>· Verbrauch: <span id="selectedAnalysisCredits">0 Credits</span></span>
+                <span id="selectedAnalysisWarning" class="selected-analysis-warning hidden"></span>
+              </div>
+            </div>
+            <div class="selected-analysis-actions">
+              <button type="button" class="btn btn-ghost btn-sm" id="clearSelectedAnalysisBtn">Auswahl zurücksetzen</button>
+              <button type="button" class="btn btn-primary" id="startSelectedAnalysisBtn" disabled>Ausgewählte Leads analysieren</button>
+            </div>
+          </div>
+
           <!-- TABLE -->
           <div class="table-wrap">
             <table class="leads-table">
               <thead>
                 <tr>
+                  <th class="select-th">
+                    <input type="checkbox" id="selectAllLeadsCheckbox" aria-label="Alle sichtbaren Leads auswählen" />
+                  </th>
                   <th>Unternehmen</th>
                   <th>ASP / Kontakt</th>
                   <th>Website</th>
@@ -289,7 +308,7 @@
                 </tr>
               </thead>
               <tbody id="leadTableBody">
-                <tr><td colspan="9" class="empty-row">Noch keine Leads vorhanden.</td></tr>
+                <tr><td colspan="10" class="empty-row">Noch keine Leads vorhanden.</td></tr>
               </tbody>
             </table>
           </div>
