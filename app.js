@@ -888,8 +888,72 @@ function closeDrawer() {
   selectedLeadId = null;
 }
 
+function toCleanArray(value) {
+  if (Array.isArray(value)) return value.filter(Boolean).map(String);
+  if (value === null || value === undefined || value === "") return [];
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return parsed.filter(Boolean).map(String);
+    } catch (_) {}
+
+    return trimmed
+      .replace(/^\{|\}$/g, "")
+      .split(/[,;|]/)
+      .map(x => x.trim().replace(/^"|"$/g, ""))
+      .filter(Boolean);
+  }
+
+  return [String(value)].filter(Boolean);
+}
+
+function formatTagLabel(value) {
+  return String(value || "")
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^./, c => c.toUpperCase());
+}
+
+function formatChannelLabel(value) {
+  const map = { email: "E-Mail", phone: "Telefon", linkedin: "LinkedIn" };
+  return map[value] || value || "–";
+}
+
+function formatPriorityLabel(value) {
+  const map = { A: "A-Lead", B: "B-Lead", C: "C-Lead", high: "High", medium: "Medium", low: "Low" };
+  return map[value] || value || "–";
+}
+
+function formatStatusLabel(value) {
+  const map = {
+    new: "Neu",
+    hubspot_imported: "Bereit",
+    no_email: "Ohne E-Mail",
+    processing: "In Analyse",
+    analyzed: "Analysiert",
+    analysed: "Analysiert",
+    qualified: "Qualifiziert",
+    video_requested: "Video läuft",
+    video_ready: "Video bereit",
+    outreach_active: "Outreach",
+    sent: "Outreach",
+    active: "Outreach",
+    outreach_completed: "Abgeschlossen"
+  };
+  return map[value] || value || "Neu";
+}
+
+function escClass(value) {
+  return String(value || "default").toLowerCase().replace(/[^a-z0-9_-]/g, "-");
+}
+
 function renderDrawer(leadId) {
-  const lead = leads.find(l => l.id === leadId);
+  const lead = leads.find(l => Number(l.id) === Number(leadId));
   if (!lead) return;
 
   const contact = lead.inhaber_vorname
@@ -897,12 +961,26 @@ function renderDrawer(leadId) {
     : (lead.contact_person || lead.managing_director || "–");
 
   const email = lead.final_email || lead.findymail_email || lead.email || "–";
+  const priority = lead.priority || "medium";
+  const status = lead.status || lead.outreach_status || "new";
 
-  // Header
-  setText("drawerTitle", lead.lead_name);
-  setHTML("drawerPriority", `<span class="badge badge-${lead.priority || "C"}">${lead.priority || "C"}</span>`);
-  setHTML("drawerStatus", statusBadge(lead.status || "new"));
-  setText("drawerScore", `${lead.opportunity_score || 0}%`);
+  // Header – keine verschachtelten Badges, damit das Styling sauber greift
+  setText("drawerTitle", lead.lead_name || "–");
+  const priorityEl = document.getElementById("drawerPriority");
+  if (priorityEl) {
+    priorityEl.className = `badge badge-priority badge-${escClass(priority)}`;
+    priorityEl.textContent = formatPriorityLabel(priority);
+  }
+  const statusEl = document.getElementById("drawerStatus");
+  if (statusEl) {
+    statusEl.className = `badge badge-status badge-status-${escClass(status)}`;
+    statusEl.textContent = formatStatusLabel(status);
+  }
+  const scoreEl = document.getElementById("drawerScore");
+  if (scoreEl) {
+    scoreEl.className = "badge badge-score";
+    scoreEl.textContent = `${Number(lead.opportunity_score || 0)}%`;
+  }
 
   // Overview Tab
   setText("dAnsp", contact);
@@ -910,27 +988,33 @@ function renderDrawer(leadId) {
   setText("dIndustry", lead.industry || "–");
   setHTML("dEmail", email !== "–" ? `<a href="mailto:${esc(email)}">${esc(email)}</a>` : "–");
   setText("dPhone", lead.phone || "–");
-  setHTML("dWebsite", lead.website ? `<a href="${esc(lead.website)}" target="_blank">${esc(lead.website)}</a>` : "–");
-  setText("dCrmSync", lead.outreach_status === "sent" ? "Ja – In Outreach" : "Nein");
+  setHTML("dWebsite", lead.website ? `<a href="${esc(lead.website)}" target="_blank" rel="noopener noreferrer">${esc(lead.website)}</a>` : "–");
+  setText("dCrmSync", ["sent", "active", "outreach_active"].includes(lead.outreach_status || lead.status) ? "Ja – In Outreach" : "Nein");
 
-  const weaknesses = lead.weakness_tags || [];
-  document.getElementById("dWeaknessTags").innerHTML = weaknesses.length
-    ? weaknesses.map(t => `<span class="tag">${esc(t)}</span>`).join("")
-    : '<span class="tag">Keine Tags</span>';
+  const weaknesses = toCleanArray(lead.weakness_tags);
+  const weaknessesEl = document.getElementById("dWeaknessTags");
+  if (weaknessesEl) {
+    weaknessesEl.innerHTML = weaknesses.length
+      ? weaknesses.map(t => `<span class="tag tag-weakness">${esc(formatTagLabel(t))}</span>`).join("")
+      : '<span class="tag tag-muted">Keine Tags</span>';
+  }
 
-  const services = lead.recommended_services || [];
-  document.getElementById("dServiceTags").innerHTML = services.length
-    ? services.map(s => `<span class="tag service">${esc(s)}</span>`).join("")
-    : '<span style="color:var(--text-3);font-size:13px">Keine Empfehlungen</span>';
+  const services = toCleanArray(lead.recommended_services);
+  const servicesEl = document.getElementById("dServiceTags");
+  if (servicesEl) {
+    servicesEl.innerHTML = services.length
+      ? services.map(s => `<span class="tag service">${esc(formatTagLabel(s))}</span>`).join("")
+      : '<span class="tag tag-muted">Keine Empfehlungen</span>';
+  }
 
   setText("dPitch", lead.final_sales_hook || lead.sales_hook || "–");
-  setText("dChannel", lead.recommended_channel || "–");
+  setText("dChannel", formatChannelLabel(lead.recommended_channel || "–"));
 
   // Analyse Tab
-  const ws = lead.website_score || 0;
-  const igs = lead.instagram_score || 0;
-  const ads = lead.ads_score || 0;
-  const total = lead.opportunity_score || 0;
+  const ws = Number(lead.website_score ?? lead.pagespeed_score ?? lead.mobile_score ?? 0);
+  const igs = Number(lead.instagram_score || 0);
+  const ads = Number(lead.ads_score || 0);
+  const total = Number(lead.opportunity_score || 0);
 
   document.getElementById("scoreWebsite").style.width = `${ws}%`;
   document.getElementById("scoreWebsiteNum").textContent = `${ws}%`;
@@ -1236,6 +1320,7 @@ function statusBadge(s) {
     hubspot_imported: ["Bereit", "badge-new"],
     no_email: ["Ohne E-Mail", "badge-B"],
     processing: ["In Analyse", "badge-B"],
+    analyzed: ["Analysiert", "badge-qualified"],
     analysed: ["Analysiert", "badge-qualified"],
     qualified: ["Qualifiziert", "badge-qualified"],
     video_requested: ["Video läuft", "badge-video"],
