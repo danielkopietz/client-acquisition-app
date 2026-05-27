@@ -693,6 +693,8 @@ function scanItemHTML(s) {
 // SELECTED ANALYSIS – Lead-Auswahl für WF02
 // ─────────────────────────────────────────────────────────────
 function canUseSelectedAnalysis() {
+  // Fuer VF (company_id=3) immer aktiv + call_approved Gate
+  if (companyData?.id === 3) return true;
   return companyData?.features?.selected_analysis === true;
 }
 
@@ -705,8 +707,13 @@ function getCreditsRemaining() {
 }
 
 function isLeadSelectable(lead) {
+  if (!lead) return false;
+  // Fuer VF: nur call_approved Leads sind analysierbar
+  if (companyData?.id === 3) {
+    return lead.call_approved === true && !!(lead.email || lead.final_email || lead.findymail_email);
+  }
   const allowedStatuses = ["hubspot_imported", "new", "no_email"];
-  return !!lead && allowedStatuses.includes(lead.status || "new");
+  return allowedStatuses.includes(lead.status || "new");
 }
 
 function toggleAnalysisLead(leadId) {
@@ -788,7 +795,7 @@ async function startSelectedAnalysis() {
   const confirmed = window.confirm(
     `${selectedAnalysisLeadIds.length} Leads analysieren?\n\n` +
     `Es werden ${selectedAnalysisLeadIds.length} Credits verbraucht.\n` +
-    `Die Leads werden angereichert, analysiert, mit Pitchlane vorbereitet und an Instantly übergeben.`
+    `companyData?.id === 3 ? "Die freigegebenen Leads werden vollständig analysiert. Nach dem Anruf-Check wird automatisch ein Video erstellt und an Instantly übergeben." : "Die Leads werden angereichert, analysiert, mit Pitchlane vorbereitet und an Instantly übergeben."`
   );
 
   if (!confirmed) return;
