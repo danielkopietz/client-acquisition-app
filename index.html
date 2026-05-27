@@ -401,48 +401,40 @@
       <!-- OVERVIEW TAB -->
       <div class="tab-panel active" id="tab-overview">
 
+        <!-- STAMMDATEN mit inline Freigabe -->
+        <div class="detail-grid">
+          <div class="detail-row">
+            <span class="detail-label">Ansprechpartner</span>
+            <input type="text" id="callContactPerson" class="inline-edit-field" placeholder="–" style="border:none;border-bottom:1px solid var(--border);background:transparent;font-size:14px;font-weight:600;color:var(--text-1);text-align:right;padding:2px 4px;width:60%;outline:none;" />
+            <input type="hidden" id="callCompanyName" />
+          </div>
+          <div class="detail-row"><span class="detail-label">Stadt</span><span id="dCity">–</span></div>
+          <div class="detail-row"><span class="detail-label">Branche</span><span id="dIndustry">–</span></div>
+          <div class="detail-row">
+            <span class="detail-label">E-Mail</span>
+            <input type="email" id="callEmail" class="inline-edit-field" placeholder="–" style="border:none;border-bottom:1px solid var(--border);background:transparent;font-size:14px;font-weight:600;color:var(--text-1);text-align:right;padding:2px 4px;width:60%;outline:none;" />
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Telefon</span>
+            <input type="tel" id="callPhone" class="inline-edit-field" placeholder="–" style="border:none;border-bottom:1px solid var(--border);background:transparent;font-size:14px;font-weight:600;color:var(--text-1);text-align:right;padding:2px 4px;width:60%;outline:none;" />
+          </div>
+          <div class="detail-row"><span class="detail-label">Website</span><span id="dWebsite">–</span></div>
+          <div class="detail-row"><span class="detail-label">CRM Sync</span><span id="dCrmSync">Nein</span></div>
+        </div>
+
         <!-- TELEFONISCHE FREIGABE -->
-        <div class="detail-section" style="border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <div class="detail-section" style="margin-top:16px;padding:14px;border:1px solid var(--border);border-radius:10px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
             <span style="font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted)">TELEFONISCHE FREIGABE</span>
             <span id="callApprovalState" class="call-approval-state">Nicht freigegeben</span>
           </div>
-          <h4 style="margin-bottom:4px;font-size:15px;">Kontakt für den E-Mail-Versand bestätigen</h4>
-          <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Die Kontaktdaten wurden aus dem Impressum vorbefüllt. Passe sie nur an, wenn dir im Telefonat ein anderer zuständiger Kontakt genannt wird.</p>
           <p id="originalManagingDirector" class="hidden" style="font-size:12px;color:var(--muted);margin-bottom:10px;"></p>
-
-          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Unternehmen</label>
-          <input type="text" id="callCompanyName" placeholder="Firmenname" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-bottom:10px;background:var(--bg-2);color:var(--text-1);" />
-
-          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Ansprechpartner</label>
-          <input type="text" id="callContactPerson" placeholder="Vor- und Nachname" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-bottom:10px;background:var(--bg-2);color:var(--text-1);" />
-
-          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">E-Mail-Adresse</label>
-          <input type="email" id="callEmail" placeholder="kontakt@unternehmen.de" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-bottom:10px;background:var(--bg-2);color:var(--text-1);" />
-
-          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Telefonnummer</label>
-          <input type="tel" id="callPhone" placeholder="+49 ..." style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-bottom:12px;background:var(--bg-2);color:var(--text-1);" />
-
-          <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px;cursor:pointer;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:10px;cursor:pointer;">
             <input type="checkbox" id="callApproved" style="width:15px;height:15px;accent-color:var(--accent);" />
-            Das Unternehmen hat telefonisch zugestimmt, dass eine E-Mail gesendet werden darf.
+            Unternehmen hat telefonisch zugestimmt, dass eine E-Mail gesendet werden darf.
           </label>
-
-          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Telefonnotiz</label>
-          <textarea id="callNotes" placeholder="z.B. Geschäftsführer erreicht; Herr Müller ist zuständig; Versand bestätigt." style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;min-height:80px;resize:vertical;margin-bottom:14px;background:var(--bg-2);color:var(--text-1);"></textarea>
-
-          <button id="saveCallApprovalBtn" class="btn btn-primary" style="width:auto;padding:10px 20px;font-size:14px;">Kontakt &amp; Freigabe speichern</button>
-        </div>
-
-        <!-- STAMMDATEN -->
-        <div class="detail-grid">
-          <div class="detail-row"><span class="detail-label">Ansprechpartner</span><span id="dAnsp">–</span></div>
-          <div class="detail-row"><span class="detail-label">Stadt</span><span id="dCity">–</span></div>
-          <div class="detail-row"><span class="detail-label">Branche</span><span id="dIndustry">–</span></div>
-          <div class="detail-row"><span class="detail-label">E-Mail</span><span id="dEmail">–</span></div>
-          <div class="detail-row"><span class="detail-label">Telefon</span><span id="dPhone">–</span></div>
-          <div class="detail-row"><span class="detail-label">Website</span><span id="dWebsite">–</span></div>
-          <div class="detail-row"><span class="detail-label">CRM Sync</span><span id="dCrmSync">Nein</span></div>
+          <textarea id="callNotes" placeholder="Telefonnotiz: z.B. Herr Marx ist zuständig, Versand bestätigt." style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;min-height:70px;resize:vertical;margin-bottom:12px;background:var(--bg-2);color:var(--text-1);box-sizing:border-box;"></textarea>
+          <button id="saveCallApprovalBtn" class="btn btn-primary" style="width:auto;padding:9px 18px;font-size:13px;">Kontakt &amp; Freigabe speichern</button>
         </div>
 
         <div class="detail-section">
