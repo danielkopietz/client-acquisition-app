@@ -411,7 +411,8 @@ async function saveCallApproval(leadId) {
   const lead = leads.find(l => Number(l.id) === Number(leadId));
   if (!lead) return;
 
-  const leadName = document.getElementById("callCompanyName")?.value.trim() || "";
+  // Firmennamen direkt aus Lead-Daten (hidden field ist unzuverlässig)
+  const leadName = lead.lead_name || lead.company_name || "";
   const contactPerson = document.getElementById("callContactPerson")?.value.trim() || "";
   const email = document.getElementById("callEmail")?.value.trim() || "";
   const phone = document.getElementById("callPhone")?.value.trim() || "";
@@ -1085,12 +1086,11 @@ function renderDrawer(leadId) {
 
   if (callCompanyName) callCompanyName.value = lead.lead_name || lead.company_name || "";
   if (callContactPerson) {
-    const asp = lead.contact_person || lead.managing_director || lead.inhaber_vorname
-      ? [lead.inhaber_vorname, lead.inhaber_nachname].filter(Boolean).join(" ") || lead.contact_person || lead.managing_director
-      : "";
-    callContactPerson.value = asp || "";
+    const asp = lead.contact_person || lead.managing_director ||
+      ([lead.inhaber_vorname, lead.inhaber_nachname].filter(Boolean).join(' ')) || '';
+    callContactPerson.value = asp;
   }
-  if (callEmail) callEmail.value = lead.email || lead.findymail_email || lead.final_email || "";
+  if (callEmail) callEmail.value = lead.email || lead.final_email || lead.findymail_email || "";
   if (callPhone) callPhone.value = lead.phone || "";
   if (callApproved) callApproved.checked = lead.call_approved === true;
   if (callNotes) callNotes.value = lead.call_notes || "";
