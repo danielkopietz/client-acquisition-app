@@ -1084,8 +1084,13 @@ function renderDrawer(leadId) {
   const originalManagingDirector = document.getElementById("originalManagingDirector");
 
   if (callCompanyName) callCompanyName.value = lead.lead_name || lead.company_name || "";
-  if (callContactPerson) callContactPerson.value = lead.contact_person || lead.managing_director || "";
-  if (callEmail) callEmail.value = lead.email || lead.final_email || lead.findymail_email || "";
+  if (callContactPerson) {
+    const asp = lead.contact_person || lead.managing_director || lead.inhaber_vorname
+      ? [lead.inhaber_vorname, lead.inhaber_nachname].filter(Boolean).join(" ") || lead.contact_person || lead.managing_director
+      : "";
+    callContactPerson.value = asp || "";
+  }
+  if (callEmail) callEmail.value = lead.email || lead.findymail_email || lead.final_email || "";
   if (callPhone) callPhone.value = lead.phone || "";
   if (callApproved) callApproved.checked = lead.call_approved === true;
   if (callNotes) callNotes.value = lead.call_notes || "";
