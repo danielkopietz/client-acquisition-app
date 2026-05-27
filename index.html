@@ -297,9 +297,8 @@
                     <input type="checkbox" id="selectAllLeadsCheckbox" aria-label="Alle sichtbaren Leads auswählen" />
                   </th>
                   <th>Unternehmen</th>
-                  <th>Kontakt / E-Mail</th>
-                  <th>Telefonfreigabe</th>
-                  <th>Website Score</th>
+                  <th>ASP / Kontakt</th>
+                  <th>Website</th>
                   <th>Instagram</th>
                   <th>Meta Ads</th>
                   <th>Sales Potential</th>
@@ -309,7 +308,7 @@
                 </tr>
               </thead>
               <tbody id="leadTableBody">
-                <tr><td colspan="11" class="empty-row">Noch keine Leads vorhanden.</td></tr>
+                <tr><td colspan="10" class="empty-row">Noch keine Leads vorhanden.</td></tr>
               </tbody>
             </table>
           </div>
@@ -401,53 +400,66 @@
 
       <!-- OVERVIEW TAB -->
       <div class="tab-panel active" id="tab-overview">
-        <div class="contact-edit-card">
-          <div class="contact-edit-header">
-            <div>
-              <p class="contact-edit-kicker">TELEFONISCHE FREIGABE</p>
-              <h4>Kontakt für den E-Mail-Versand bestätigen</h4>
-              <p>Nach dem Telefonat Daten korrigieren und Freigabe speichern. Erst danach ist der Lead für die Analyse auswählbar.</p>
+        <div class="telephone-approval-card">
+          <div class="telephone-approval-header">
+            <div class="telephone-approval-title-row">
+              <div>
+                <p class="telephone-approval-kicker">TELEFONISCHE FREIGABE</p>
+                <h4>Kontakt für den E-Mail-Versand bestätigen</h4>
+              </div>
+              <div id="callApprovalState" class="call-approval-state">Nicht freigegeben</div>
             </div>
-            <span id="contactReadinessBadge" class="approval-pill pending">Nicht freigegeben</span>
+            <p class="telephone-approval-copy">
+              Die Kontaktdaten wurden aus dem Impressum vorbefüllt. Passe sie nur an,
+              wenn dir im Telefonat ein anderer zuständiger Kontakt genannt wird.
+            </p>
           </div>
 
-          <div class="contact-form-grid">
-            <div class="form-group">
-              <label>Unternehmen</label>
-              <input type="text" id="editLeadName" placeholder="Firmenname" />
+          <div class="telephone-form-grid">
+            <div class="form-group telephone-full-width">
+              <label for="callCompanyName">Unternehmen</label>
+              <input type="text" id="callCompanyName" placeholder="Firmenname" />
             </div>
-            <div class="form-group">
-              <label>Ansprechpartner</label>
-              <input type="text" id="editContactPerson" placeholder="Vor- und Nachname" />
+
+            <div class="form-group telephone-full-width">
+              <label for="callContactPerson">Ansprechpartner</label>
+              <input type="text" id="callContactPerson" placeholder="Vor- und Nachname" />
+              <p id="originalManagingDirector" class="telephone-origin-hint hidden"></p>
             </div>
-            <div class="form-group">
-              <label>E-Mail-Adresse</label>
-              <input type="email" id="editContactEmail" placeholder="kontakt@unternehmen.de" />
+
+            <div class="form-group telephone-full-width">
+              <label for="callEmail">E-Mail-Adresse</label>
+              <input type="email" id="callEmail" placeholder="kontakt@unternehmen.de" />
             </div>
-            <div class="form-group">
-              <label>Telefonnummer</label>
-              <input type="text" id="editContactPhone" placeholder="+49 ..." />
+
+            <div class="form-group telephone-full-width">
+              <label for="callPhone">Telefonnummer</label>
+              <input type="tel" id="callPhone" placeholder="+49 ..." />
+            </div>
+
+            <label class="call-consent-row telephone-full-width">
+              <input type="checkbox" id="callApproved" />
+              <span>Das Unternehmen hat telefonisch zugestimmt, dass eine E-Mail gesendet werden darf.</span>
+            </label>
+
+            <div class="form-group telephone-full-width">
+              <label for="callNotes">Telefonnotiz</label>
+              <textarea id="callNotes" rows="4" placeholder="z.B. Geschäftsführer erreicht; Herr Müller ist zuständig; Versand bestätigt."></textarea>
+            </div>
+
+            <div class="telephone-save-row telephone-full-width">
+              <button type="button" class="btn btn-primary" id="saveCallApprovalBtn">
+                Kontakt &amp; Freigabe speichern
+              </button>
             </div>
           </div>
-
-          <label class="approval-checkbox">
-            <input type="checkbox" id="editCallApproved" />
-            <span>Das Unternehmen hat telefonisch zugestimmt, dass eine E-Mail gesendet werden darf.</span>
-          </label>
-
-          <div class="form-group">
-            <label>Telefonnotiz</label>
-            <textarea id="editCallNotes" rows="3" placeholder="z.B. Ansprechpartner bestätigt, Versand an diese Adresse erlaubt."></textarea>
-          </div>
-
-          <button class="btn btn-primary" id="saveContactBtn">Kontakt &amp; Freigabe speichern</button>
         </div>
 
-        <div class="detail-grid contact-detail-grid">
+        <div class="detail-grid contact-summary-grid">
           <div class="detail-row"><span class="detail-label">Stadt</span><span id="dCity">–</span></div>
           <div class="detail-row"><span class="detail-label">Branche</span><span id="dIndustry">–</span></div>
           <div class="detail-row"><span class="detail-label">Website</span><span id="dWebsite">–</span></div>
-          <div class="detail-row"><span class="detail-label">Outreach</span><span id="dCrmSync">Nein</span></div>
+          <div class="detail-row"><span class="detail-label">CRM Sync</span><span id="dCrmSync">Nein</span></div>
         </div>
 
         <div class="detail-section">
