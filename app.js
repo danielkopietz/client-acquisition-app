@@ -136,7 +136,7 @@ async function apiRequest(path, options = {}) {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || `API Fehler ${res.status}`);
+      throw new Error(err.message || err.error || `API Fehler ${res.status}`);
     }
 
     return await res.json();
@@ -293,8 +293,7 @@ function startScanPolling(scanId) {
         addActivity("Scan abgeschlossen", `Scan #${scanId}: ${scan.total_inserted || 0} Leads gespeichert.`);
         showToast(`Scan abgeschlossen! ${scan.total_inserted || 0} neue Leads.`, "success");
 
-        await loadLeads();
-        await loadScans();
+        await Promise.all([loadCompanyData(), loadStats(), loadLeads(), loadScans()]);
 
       } else if (status === "processing") {
         const processed = scan.total_processed || 0;
@@ -400,6 +399,62 @@ async function sendToOutreach(leadId) {
     }
   } catch (err) {
     showToast(`Outreach-Fehler: ${err.message}`, "error");
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// KONTAKT & TELEFONFREIGABE SPEICHERN – COMPANY 3
+// ─────────────────────────────────────────────────────────────
+async function saveLeadContactData(leadId) {
+  const lead = leads.find(l => Number(l.id) === Number(leadId));
+  if (!lead) return;
+
+  const email = document.getElementById("editContactEmail")?.value.trim() || "";
+  const approved = document.getElementById("editCallApproved")?.checked === true;
+
+  if (approved && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    showToast("Für die Freigabe muss eine gültige E-Mail-Adresse vorhanden sein.", "error");
+    return;
+  }
+
+  const updates = {
+    lead_name: document.getElementById("editLeadName")?.value.trim() || "",
+    contact_person: document.getElementById("editContactPerson")?.value.trim() || "",
+    email,
+    phone: document.getElementById("editContactPhone")?.value.trim() || "",
+    call_approved: approved,
+    call_notes: document.getElementById("editCallNotes")?.value.trim() || ""
+  };
+
+  const button = document.getElementById("saveContactBtn");
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Speichert…";
+  }
+
+  try {
+    const saved = await apiRequest(`/leads/${leadId}`, {
+      method: "PATCH",
+      body: JSON.stringify(updates)
+    });
+
+    const idx = leads.findIndex(l => Number(l.id) === Number(leadId));
+    if (idx >= 0) leads[idx] = { ...leads[idx], ...saved };
+
+    addTimelineEntry(leadId, "Telefonfreigabe gespeichert",
+      saved.call_approved ? "E-Mail-Versand telefonisch freigegeben." : "Freigabe wurde entfernt.");
+    showToast(saved.call_approved ? "Kontakt freigegeben – Lead kann analysiert werden." : "Kontaktdaten gespeichert.", "success");
+
+    renderAll();
+    renderDrawer(leadId);
+    await loadStats();
+  } catch (err) {
+    showToast(`Speichern fehlgeschlagen: ${err.message}`, "error");
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Kontakt & Freigabe speichern";
+    }
   }
 }
 
@@ -608,8 +663,12 @@ function scanItemHTML(s) {
 // ─────────────────────────────────────────────────────────────
 // SELECTED ANALYSIS – Lead-Auswahl für WF02
 // ─────────────────────────────────────────────────────────────
+function isCompany3() {
+  return Number(companyData?.id) === 3;
+}
+
 function canUseSelectedAnalysis() {
-  return companyData?.features?.selected_analysis === true;
+  return isCompany3() || companyData?.features?.selected_analysis === true;
 }
 
 function getCreditsRemaining() {
@@ -620,9 +679,22 @@ function getCreditsRemaining() {
   return (Number(companyData.credits_total) || 0) - (Number(companyData.credits_used) || 0);
 }
 
+function hasValidLeadEmail(lead) {
+  const email = String(lead?.email || lead?.final_email || "").trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 function isLeadSelectable(lead) {
-  const allowedStatuses = ["hubspot_imported", "new", "no_email"];
-  return !!lead && allowedStatuses.includes(lead.status || "new");
+  if (!lead) return false;
+
+  if (isCompany3()) {
+    const allowedStatuses = ["new", "no_email", "called", "approved", "contact_confirmed", "ready_for_analysis"];
+    return allowedStatuses.includes(lead.status || "new")
+      && lead.call_approved === true
+      && hasValidLeadEmail(lead);
+  }
+
+  return ["hubspot_imported", "new", "no_email"].includes(lead.status || "new");
 }
 
 function toggleAnalysisLead(leadId) {
@@ -703,7 +775,7 @@ async function startSelectedAnalysis() {
 
   const confirmed = window.confirm(
     `${selectedAnalysisLeadIds.length} Leads analysieren?\n\n` +
-    `Es werden ${selectedAnalysisLeadIds.length} Credits verbraucht.\n` +
+    `Nach jeder final erfolgreich gespeicherten Analyse wird 1 Credit abgezogen.\n` +
     `Die Leads werden angereichert, analysiert, mit Pitchlane vorbereitet und an Instantly übergeben.`
   );
 
@@ -737,36 +809,43 @@ async function startSelectedAnalysis() {
 
 function renderLeadTable() {
   const tbody = document.getElementById("leadTableBody");
-  let filtered = filterLeads();
+  const filtered = filterLeads();
   const selectionEnabled = canUseSelectedAnalysis();
 
   renderSelectedAnalysisToolbar();
 
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="${selectionEnabled ? 10 : 9}" class="empty-row">Keine Leads gefunden.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${selectionEnabled ? 11 : 10}" class="empty-row">Keine Leads gefunden.</td></tr>`;
     return;
   }
 
   tbody.innerHTML = filtered.map(l => {
-    const email = l.final_email || l.findymail_email || l.email || "";
-    const contact = l.inhaber_vorname
-      ? `${l.inhaber_vorname} ${l.inhaber_nachname || ""}`.trim()
-      : (l.contact_person || l.managing_director || "–");
-    const score = l.opportunity_score || 0;
+    const email = l.email || l.final_email || "";
+    const contact = l.contact_person || l.managing_director ||
+      ([l.inhaber_vorname, l.inhaber_nachname].filter(Boolean).join(" ")) || "–";
+    const score = Number(l.opportunity_score || 0);
     const scoreColor = score >= 70 ? "green" : score >= 45 ? "" : "amber";
     const selectable = selectionEnabled && isLeadSelectable(l);
     const checked = selectedAnalysisLeadIds.includes(Number(l.id));
+
+    let approvalLabel = "Telefonat offen";
+    let approvalClass = "pending";
+    if (l.call_approved === true && hasValidLeadEmail(l)) {
+      approvalLabel = "Versand erlaubt";
+      approvalClass = "approved";
+    } else if (l.call_approved === true && !hasValidLeadEmail(l)) {
+      approvalLabel = "E-Mail fehlt";
+      approvalClass = "warning";
+    }
+
     const selectionCell = selectionEnabled ? `
-        <td class="select-cell" onclick="event.stopPropagation()">
-          <input
-            type="checkbox"
-            class="lead-select-checkbox"
-            ${selectable ? "" : "disabled"}
-            ${checked ? "checked" : ""}
-            onchange="toggleAnalysisLead(${l.id})"
-            aria-label="Lead ${esc(l.lead_name)} auswählen"
-          />
-        </td>` : "";
+      <td class="select-cell" onclick="event.stopPropagation()">
+        <input type="checkbox" class="lead-select-checkbox"
+          ${selectable ? "" : "disabled"}
+          ${checked ? "checked" : ""}
+          onchange="toggleAnalysisLead(${l.id})"
+          aria-label="Lead ${esc(l.lead_name)} auswählen" />
+      </td>` : "";
 
     return `
       <tr onclick="openDrawer(${l.id})" class="${selectable ? "selectable-lead-row" : ""}">
@@ -777,15 +856,17 @@ function renderLeadTable() {
         </td>
         <td>
           <div class="td-contact">${esc(contact)}</div>
-          <div class="td-email">${email ? `<a href="mailto:${esc(email)}" onclick="event.stopPropagation()">${esc(email)}</a>` : "–"}</div>
+          <div class="td-email">${email ? `<a href="mailto:${esc(email)}" onclick="event.stopPropagation()">${esc(email)}</a>` : "Keine E-Mail"}</div>
+          <div class="td-phone">${esc(l.phone || "")}</div>
         </td>
-        <td>${scoreCell(l.website_score || l.pagespeed_score || 0, "")}</td>
-        <td>${l.instagram_found ? `${l.instagram_followers || 0} Follower` : '<span style="color:var(--muted)">–</span>'}</td>
+        <td><span class="approval-pill ${approvalClass}">${approvalLabel}</span></td>
+        <td>${scoreCell(Number(l.website_score || l.pagespeed_score || 0), "")}</td>
+        <td>${l.instagram_found ? `${Number(l.instagram_followers || 0)} Follower` : '<span class="muted-cell">–</span>'}</td>
         <td><span class="ads-badge ${l.ads_found ? "has-ads" : "no-ads"}">${l.ads_found ? "Aktiv" : "Keine Ads"}</span></td>
         <td>${scoreCell(score, scoreColor)}</td>
         <td>${statusBadge(l.status || l.outreach_status)}</td>
         <td>${priorityBadge(l.priority)}</td>
-        <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); openDrawer(${l.id})">Öffnen</button></td>
+        <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); openDrawer(${l.id})">Bearbeiten</button></td>
       </tr>
     `;
   }).join("");
@@ -934,6 +1015,8 @@ function formatStatusLabel(value) {
     new: "Neu",
     hubspot_imported: "Bereit",
     no_email: "Ohne E-Mail",
+    ready_for_analysis: "Freigegeben",
+    contact_confirmed: "Freigegeben",
     processing: "In Analyse",
     analyzed: "Analysiert",
     analysed: "Analysiert",
@@ -982,14 +1065,25 @@ function renderDrawer(leadId) {
     scoreEl.textContent = `${Number(lead.opportunity_score || 0)}%`;
   }
 
-  // Overview Tab
-  setText("dAnsp", contact);
+  // Overview Tab: telefonisch bestätigbare Kontaktdaten
+  document.getElementById("editLeadName").value = lead.lead_name || "";
+  document.getElementById("editContactPerson").value = contact === "–" ? "" : contact;
+  document.getElementById("editContactEmail").value = email === "–" ? "" : email;
+  document.getElementById("editContactPhone").value = lead.phone || "";
+  document.getElementById("editCallApproved").checked = lead.call_approved === true;
+  document.getElementById("editCallNotes").value = lead.call_notes || "";
+
+  const ready = lead.call_approved === true && hasValidLeadEmail(lead);
+  const readinessBadge = document.getElementById("contactReadinessBadge");
+  if (readinessBadge) {
+    readinessBadge.className = `approval-pill ${ready ? "approved" : (lead.call_approved ? "warning" : "pending")}`;
+    readinessBadge.textContent = ready ? "Versand erlaubt" : (lead.call_approved ? "E-Mail fehlt" : "Nicht freigegeben");
+  }
+
   setText("dCity", lead.city || "–");
   setText("dIndustry", lead.industry || "–");
-  setHTML("dEmail", email !== "–" ? `<a href="mailto:${esc(email)}">${esc(email)}</a>` : "–");
-  setText("dPhone", lead.phone || "–");
   setHTML("dWebsite", lead.website ? `<a href="${esc(lead.website)}" target="_blank" rel="noopener noreferrer">${esc(lead.website)}</a>` : "–");
-  setText("dCrmSync", ["sent", "active", "outreach_active"].includes(lead.outreach_status || lead.status) ? "Ja – In Outreach" : "Nein");
+  setText("dCrmSync", ["sent", "active", "outreach_active"].includes(lead.outreach_status || lead.status) ? "Ja – In Outreach" : "Noch nicht übergeben");
 
   const weaknesses = toCleanArray(lead.weakness_tags);
   const weaknessesEl = document.getElementById("dWeaknessTags");
@@ -1185,6 +1279,11 @@ function bindEvents() {
     });
   });
 
+  // Kontaktfreigabe für Company 3
+  document.getElementById("saveContactBtn")?.addEventListener("click", () => {
+    if (selectedLeadId) saveLeadContactData(selectedLeadId);
+  });
+
   // CRM
   document.getElementById("saveCrmBtn")?.addEventListener("click", () => {
     if (selectedLeadId) saveCrmData(selectedLeadId);
@@ -1319,6 +1418,8 @@ function statusBadge(s) {
     new: ["Neu", "badge-new"],
     hubspot_imported: ["Bereit", "badge-new"],
     no_email: ["Ohne E-Mail", "badge-B"],
+    ready_for_analysis: ["Freigegeben", "badge-qualified"],
+    contact_confirmed: ["Freigegeben", "badge-qualified"],
     processing: ["In Analyse", "badge-B"],
     analyzed: ["Analysiert", "badge-qualified"],
     analysed: ["Analysiert", "badge-qualified"],

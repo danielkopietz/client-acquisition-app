@@ -297,8 +297,9 @@
                     <input type="checkbox" id="selectAllLeadsCheckbox" aria-label="Alle sichtbaren Leads auswählen" />
                   </th>
                   <th>Unternehmen</th>
-                  <th>ASP / Kontakt</th>
-                  <th>Website</th>
+                  <th>Kontakt / E-Mail</th>
+                  <th>Telefonfreigabe</th>
+                  <th>Website Score</th>
                   <th>Instagram</th>
                   <th>Meta Ads</th>
                   <th>Sales Potential</th>
@@ -308,7 +309,7 @@
                 </tr>
               </thead>
               <tbody id="leadTableBody">
-                <tr><td colspan="10" class="empty-row">Noch keine Leads vorhanden.</td></tr>
+                <tr><td colspan="11" class="empty-row">Noch keine Leads vorhanden.</td></tr>
               </tbody>
             </table>
           </div>
@@ -400,14 +401,53 @@
 
       <!-- OVERVIEW TAB -->
       <div class="tab-panel active" id="tab-overview">
-        <div class="detail-grid">
-          <div class="detail-row"><span class="detail-label">Ansprechpartner</span><span id="dAnsp">–</span></div>
+        <div class="contact-edit-card">
+          <div class="contact-edit-header">
+            <div>
+              <p class="contact-edit-kicker">TELEFONISCHE FREIGABE</p>
+              <h4>Kontakt für den E-Mail-Versand bestätigen</h4>
+              <p>Nach dem Telefonat Daten korrigieren und Freigabe speichern. Erst danach ist der Lead für die Analyse auswählbar.</p>
+            </div>
+            <span id="contactReadinessBadge" class="approval-pill pending">Nicht freigegeben</span>
+          </div>
+
+          <div class="contact-form-grid">
+            <div class="form-group">
+              <label>Unternehmen</label>
+              <input type="text" id="editLeadName" placeholder="Firmenname" />
+            </div>
+            <div class="form-group">
+              <label>Ansprechpartner</label>
+              <input type="text" id="editContactPerson" placeholder="Vor- und Nachname" />
+            </div>
+            <div class="form-group">
+              <label>E-Mail-Adresse</label>
+              <input type="email" id="editContactEmail" placeholder="kontakt@unternehmen.de" />
+            </div>
+            <div class="form-group">
+              <label>Telefonnummer</label>
+              <input type="text" id="editContactPhone" placeholder="+49 ..." />
+            </div>
+          </div>
+
+          <label class="approval-checkbox">
+            <input type="checkbox" id="editCallApproved" />
+            <span>Das Unternehmen hat telefonisch zugestimmt, dass eine E-Mail gesendet werden darf.</span>
+          </label>
+
+          <div class="form-group">
+            <label>Telefonnotiz</label>
+            <textarea id="editCallNotes" rows="3" placeholder="z.B. Ansprechpartner bestätigt, Versand an diese Adresse erlaubt."></textarea>
+          </div>
+
+          <button class="btn btn-primary" id="saveContactBtn">Kontakt &amp; Freigabe speichern</button>
+        </div>
+
+        <div class="detail-grid contact-detail-grid">
           <div class="detail-row"><span class="detail-label">Stadt</span><span id="dCity">–</span></div>
           <div class="detail-row"><span class="detail-label">Branche</span><span id="dIndustry">–</span></div>
-          <div class="detail-row"><span class="detail-label">E-Mail</span><span id="dEmail">–</span></div>
-          <div class="detail-row"><span class="detail-label">Telefon</span><span id="dPhone">–</span></div>
           <div class="detail-row"><span class="detail-label">Website</span><span id="dWebsite">–</span></div>
-          <div class="detail-row"><span class="detail-label">CRM Sync</span><span id="dCrmSync">Nein</span></div>
+          <div class="detail-row"><span class="detail-label">Outreach</span><span id="dCrmSync">Nein</span></div>
         </div>
 
         <div class="detail-section">

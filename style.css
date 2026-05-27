@@ -966,3 +966,88 @@
     text-align:left!important;
   }
 }
+
+
+/* ============================================================
+   COMPANY 3 · TELEFONFREIGABE & EDITIERBARE KONTAKTDATEN
+============================================================ */
+.contact-edit-card{
+  margin-bottom:18px;
+  padding:18px;
+  border:1px solid rgba(255,92,0,.18);
+  border-radius:20px;
+  background:linear-gradient(135deg,#fff 0%,#fff8f4 100%);
+}
+.contact-edit-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:15px;
+  margin-bottom:16px;
+}
+.contact-edit-header h4{
+  font-size:17px;
+  line-height:1.2;
+  font-weight:950;
+  letter-spacing:-.025em;
+}
+.contact-edit-header p:not(.contact-edit-kicker){
+  color:var(--muted);
+  margin-top:5px;
+  font-size:12px;
+  max-width:440px;
+}
+.contact-edit-kicker{
+  color:var(--accent);
+  font-size:10px;
+  font-weight:950;
+  letter-spacing:.16em;
+  margin-bottom:5px;
+}
+.contact-form-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+  margin-bottom:14px;
+}
+.approval-checkbox{
+  display:flex;
+  gap:10px;
+  align-items:flex-start;
+  padding:13px 14px;
+  margin:4px 0 14px;
+  border-radius:14px;
+  border:1px solid #eadfd7;
+  background:#fff;
+  font-size:13px;
+  font-weight:750;
+  cursor:pointer;
+}
+.approval-checkbox input{
+  width:18px;
+  height:18px;
+  margin-top:1px;
+  accent-color:var(--accent);
+  flex:0 0 18px;
+}
+.approval-pill{
+  display:inline-flex;
+  align-items:center;
+  border-radius:999px;
+  padding:5px 10px;
+  font-size:11px;
+  line-height:1.2;
+  font-weight:900;
+  white-space:nowrap;
+}
+.approval-pill.approved{background:var(--green-bg);color:var(--green);}
+.approval-pill.pending{background:#f2f2f2;color:#666;}
+.approval-pill.warning{background:var(--amber-bg);color:var(--amber);}
+.contact-detail-grid{margin-top:18px;}
+.td-contact{font-weight:850;}
+.td-phone{font-size:12px;color:var(--muted);margin-top:2px;}
+.muted-cell{color:var(--muted);}
+@media(max-width:760px){
+  .contact-edit-header{flex-direction:column;}
+  .contact-form-grid{grid-template-columns:1fr;}
+}
