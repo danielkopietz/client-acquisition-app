@@ -411,8 +411,7 @@ async function saveCallApproval(leadId) {
   const lead = leads.find(l => Number(l.id) === Number(leadId));
   if (!lead) return;
 
-  // Firmennamen direkt aus Lead-Daten (hidden field ist unzuverlässig)
-  const leadName = lead.lead_name || lead.company_name || "";
+  const leadName = document.getElementById("callCompanyName")?.value.trim() || "";
   const contactPerson = document.getElementById("callContactPerson")?.value.trim() || "";
   const email = document.getElementById("callEmail")?.value.trim() || "";
   const phone = document.getElementById("callPhone")?.value.trim() || "";
@@ -841,9 +840,11 @@ function renderLeadTable() {
 
   tbody.innerHTML = filtered.map(l => {
     const email = l.final_email || l.findymail_email || l.email || "";
-    const contact = l.inhaber_vorname
-      ? `${l.inhaber_vorname} ${l.inhaber_nachname || ""}`.trim()
-      : (l.contact_person || l.managing_director || "–");
+    // contact_person hat Priorität (manuell geändert vom Vertrieb)
+    // inhaber_* als Fallback wenn contact_person leer
+    const contact = l.contact_person ||
+      (l.inhaber_vorname ? `${l.inhaber_vorname} ${l.inhaber_nachname || ""}`.trim() : null) ||
+      l.managing_director || "–";
     const score = l.opportunity_score || 0;
     const scoreColor = score >= 70 ? "green" : score >= 45 ? "" : "amber";
     const selectable = selectionEnabled && isLeadSelectable(l);
@@ -1085,11 +1086,7 @@ function renderDrawer(leadId) {
   const originalManagingDirector = document.getElementById("originalManagingDirector");
 
   if (callCompanyName) callCompanyName.value = lead.lead_name || lead.company_name || "";
-  if (callContactPerson) {
-    const asp = lead.contact_person || lead.managing_director ||
-      ([lead.inhaber_vorname, lead.inhaber_nachname].filter(Boolean).join(' ')) || '';
-    callContactPerson.value = asp;
-  }
+  if (callContactPerson) callContactPerson.value = lead.contact_person || lead.managing_director || "";
   if (callEmail) callEmail.value = lead.email || lead.final_email || lead.findymail_email || "";
   if (callPhone) callPhone.value = lead.phone || "";
   if (callApproved) callApproved.checked = lead.call_approved === true;
