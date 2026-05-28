@@ -712,7 +712,7 @@ function isLeadSelectable(lead) {
   if (companyData?.id === 3) {
     return lead.call_approved === true && !!(lead.email || lead.final_email || lead.findymail_email);
   }
-  const allowedStatuses = ["hubspot_imported", "new", "no_email"];
+  const allowedStatuses = ["hubspot_imported", "new", "no_email", "ready", "contact_confirmed"];
   return allowedStatuses.includes(lead.status || "new");
 }
 
