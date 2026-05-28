@@ -11,6 +11,56 @@ const CONFIG = {
 };
 
 // ─────────────────────────────────────────────────────────────
+// TENANT POLICIES – Auswahl-Analyse sauber pro Kunde trennen
+// ─────────────────────────────────────────────────────────────
+const COMPANY_IDS = Object.freeze({
+  BRAND4SOCIAL: 2,
+  VIRALITYFILMS: 3
+});
+
+function getCurrentCompanyId() {
+  return Number(companyData?.id || 0);
+}
+
+function isBrand4SocialCompany() {
+  return getCurrentCompanyId() === COMPANY_IDS.BRAND4SOCIAL;
+}
+
+function isViralityFilmsCompany() {
+  return getCurrentCompanyId() === COMPANY_IDS.VIRALITYFILMS;
+}
+
+function getSelectedAnalysisPolicy() {
+  if (isBrand4SocialCompany()) {
+    return {
+      enabled: true,
+      key: "brand4social",
+      maxLeads: 20,
+      requiresCallApproval: false,
+      allowedStatuses: ["hubspot_imported", "new", "no_email", "ready", "contact_confirmed"]
+    };
+  }
+
+  if (isViralityFilmsCompany()) {
+    return {
+      enabled: true,
+      key: "viralityfilms",
+      maxLeads: 50,
+      requiresCallApproval: true,
+      allowedStatuses: ["new", "no_email", "contact_confirmed", "ready_for_analysis", "called", "approved"]
+    };
+  }
+
+  return {
+    enabled: false,
+    key: "unsupported",
+    maxLeads: 0,
+    requiresCallApproval: false,
+    allowedStatuses: []
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
 // STATE
 // ─────────────────────────────────────────────────────────────
 let auth0Client = null;
@@ -355,7 +405,11 @@ function startVideoPolling(leadId) {
     }
     try {
       const data = await apiRequest(`/leads/${leadId}`);
-      if (data.video_status === "completed" && data.video_url) {
+      const readyVideoUrl = isBrand4SocialCompany()
+        ? (data.pitchlane_video_url || data.video_url)
+        : (data.video_status === "completed" ? data.video_url : null);
+
+      if (readyVideoUrl) {
         clearInterval(timer);
         // Lead in Array aktualisieren
         const idx = leads.findIndex(l => l.id === leadId);
@@ -557,8 +611,9 @@ async function generateMailDraft(leadId) {
 function applyCompanyBranding() {
   if (!companyData) return;
 
-  // B4S-only Dashboard-Erweiterungen: CSS/Module nur für company_id 2 aktivieren
-  document.documentElement.classList.toggle("tenant-company-2", Number(companyData.id) === 2);
+  // Tenant-spezifische Darstellungen bleiben strikt getrennt.
+  document.documentElement.classList.toggle("tenant-company-2", isBrand4SocialCompany());
+  document.documentElement.classList.toggle("tenant-company-3", isViralityFilmsCompany());
 
   // Firmenname
   if (companyData.company_name) {
@@ -696,9 +751,7 @@ function scanItemHTML(s) {
 // SELECTED ANALYSIS – Lead-Auswahl für WF02
 // ─────────────────────────────────────────────────────────────
 function canUseSelectedAnalysis() {
-  // Fuer VF (company_id=3) immer aktiv + call_approved Gate
-  if (companyData?.id === 3) return true;
-  return companyData?.features?.selected_analysis === true;
+  return getSelectedAnalysisPolicy().enabled === true;
 }
 
 function getCreditsRemaining() {
@@ -711,12 +764,20 @@ function getCreditsRemaining() {
 
 function isLeadSelectable(lead) {
   if (!lead) return false;
-  // Fuer VF: nur call_approved Leads sind analysierbar
-  if (companyData?.id === 3) {
-    return lead.call_approved === true && !!(lead.email || lead.final_email || lead.findymail_email);
+
+  const policy = getSelectedAnalysisPolicy();
+  if (!policy.enabled) return false;
+
+  if (policy.requiresCallApproval) {
+    return (
+      lead.call_approved === true &&
+      !!(lead.email || lead.final_email || lead.findymail_email) &&
+      policy.allowedStatuses.includes(lead.status || "new")
+    );
   }
-  const allowedStatuses = ["hubspot_imported", "new", "no_email", "ready", "contact_confirmed"];
-  return allowedStatuses.includes(lead.status || "new");
+
+  // Brand4Social: kein Call-Approval-Gate; nur noch nicht analysierte Leads auswählbar.
+  return policy.allowedStatuses.includes(lead.status || "new");
 }
 
 function toggleAnalysisLead(leadId) {
@@ -727,6 +788,11 @@ function toggleAnalysisLead(leadId) {
   if (selectedAnalysisLeadIds.includes(id)) {
     selectedAnalysisLeadIds = selectedAnalysisLeadIds.filter(x => x !== id);
   } else {
+    const maxLeads = getSelectedAnalysisPolicy().maxLeads;
+    if (selectedAnalysisLeadIds.length >= maxLeads) {
+      showToast(`Bitte maximal ${maxLeads} Leads pro Analyse-Run auswählen.`, "error");
+      return;
+    }
     selectedAnalysisLeadIds = [...new Set([...selectedAnalysisLeadIds, id])];
   }
 
@@ -742,7 +808,16 @@ function toggleAllVisibleAnalysisLeads() {
   if (allSelected) {
     selectedAnalysisLeadIds = selectedAnalysisLeadIds.filter(id => !ids.includes(id));
   } else {
-    selectedAnalysisLeadIds = [...new Set([...selectedAnalysisLeadIds, ...ids])];
+    const maxLeads = getSelectedAnalysisPolicy().maxLeads;
+    const remainingSlots = Math.max(0, maxLeads - selectedAnalysisLeadIds.length);
+    const unselectedIds = ids.filter(id => !selectedAnalysisLeadIds.includes(id));
+    const newIds = unselectedIds.slice(0, remainingSlots);
+
+    selectedAnalysisLeadIds = [...new Set([...selectedAnalysisLeadIds, ...newIds])];
+
+    if (newIds.length < unselectedIds.length) {
+      showToast(`Es können maximal ${maxLeads} Leads pro Lauf ausgewählt werden.`, "error");
+    }
   }
 
   renderLeadTable();
@@ -755,8 +830,10 @@ function renderSelectedAnalysisToolbar() {
   const warningEl = document.getElementById("selectedAnalysisWarning");
   const btn = document.getElementById("startSelectedAnalysisBtn");
   const selectAllBox = document.getElementById("selectAllLeadsCheckbox");
+  const selectHeader = document.getElementById("selectedAnalysisHeaderCell");
 
   const enabled = canUseSelectedAnalysis();
+  const policy = getSelectedAnalysisPolicy();
   const remaining = getCreditsRemaining();
   const selectedCount = selectedAnalysisLeadIds.length;
   const hasEnoughCredits = selectedCount <= remaining;
@@ -765,6 +842,7 @@ function renderSelectedAnalysisToolbar() {
   const someVisibleSelected = visibleSelectable.some(id => selectedAnalysisLeadIds.includes(id));
 
   if (toolbar) toolbar.classList.toggle("hidden", !enabled);
+  if (selectHeader) selectHeader.classList.toggle("hidden", !enabled);
   if (countEl) countEl.textContent = selectedCount;
   if (creditEl) creditEl.textContent = `${selectedCount} Credit${selectedCount === 1 ? "" : "s"}`;
   if (warningEl) {
@@ -789,13 +867,24 @@ function renderSelectedAnalysisToolbar() {
 async function startSelectedAnalysis() {
   if (!selectedAnalysisLeadIds.length) return;
 
+  const policy = getSelectedAnalysisPolicy();
+  if (!policy.enabled) {
+    showToast("Die Analyse-Auswahl ist für diesen Mandanten nicht aktiviert.", "error");
+    return;
+  }
+
+  if (selectedAnalysisLeadIds.length > policy.maxLeads) {
+    showToast(`Bitte maximal ${policy.maxLeads} Leads pro Analyse-Run auswählen.`, "error");
+    return;
+  }
+
   const remaining = getCreditsRemaining();
   if (selectedAnalysisLeadIds.length > remaining) {
     showToast(`Nicht genug Credits verfügbar. Übrig: ${remaining}`, "error");
     return;
   }
 
-  const confirmText = companyData?.id === 3
+  const confirmText = isViralityFilmsCompany()
     ? "Die Leads werden vollständig analysiert und an Pitchlane + Instantly übergeben."
     : "Die Leads werden angereichert, analysiert, mit Pitchlane vorbereitet und an Instantly übergeben.";
   const confirmed = window.confirm(
@@ -844,7 +933,7 @@ function renderLeadTable() {
 
   tbody.innerHTML = filtered.map(l => {
     const email = l.final_email || l.findymail_email || l.email || "";
-    const isVF = companyData?.id === 3;
+    const isVF = isViralityFilmsCompany();
     const contact = isVF
       ? (l.contact_person || (l.inhaber_vorname ? `${l.inhaber_vorname} ${l.inhaber_nachname || ""}`.trim() : null) || l.managing_director || "–")
       : ((l.inhaber_vorname ? `${l.inhaber_vorname} ${l.inhaber_nachname || ""}`.trim() : null) || l.contact_person || l.managing_director || "–");
@@ -1049,14 +1138,10 @@ function escClass(value) {
   return String(value || "default").toLowerCase().replace(/[^a-z0-9_-]/g, "-");
 }
 
-// ─────────────────────────────────────────────────────────────
-// COMPANY 2 / BRAND4SOCIAL – RECRUITING-SIGNAL IM DASHBOARD
-// Diese Erweiterung rendert ausschließlich bei company_id = 2.
-// ─────────────────────────────────────────────────────────────
-function isBrand4SocialCompany() {
-  return Number(companyData?.id) === 2;
-}
 
+// ─────────────────────────────────────────────────────────────
+// COMPANY 2 / BRAND4SOCIAL – Recruiting-Signal im Dashboard
+// ─────────────────────────────────────────────────────────────
 function getJobsCount(lead) {
   const storedCount = Number(lead?.jobs_count || 0);
   const titlesCount = toCleanArray(lead?.jobs_titles).length;
@@ -1080,22 +1165,14 @@ function getJobsSignalMeta(lead) {
     return {
       label: "Sehr hoch",
       levelClass: "very-high",
-      description: "Aktive Personalgewinnung signalisiert Wachstum und konkretes Potenzial für Recruiting-Automatisierung."
-    };
-  }
-
-  if (score >= 60 || count >= 1) {
-    return {
-      label: "Hoch",
-      levelClass: "high",
-      description: "Offene Stellen erkannt – ein relevantes Signal für Recruiting- und Prozesslösungen."
+      description: "Aktive Personalgewinnung signalisiert Wachstum und starkes Potenzial für Social Recruiting und Employer Branding."
     };
   }
 
   return {
-    label: "Signal erkannt",
-    levelClass: "signal",
-    description: "Eine Karriere- oder Recruiting-Aktivität wurde erkannt."
+    label: "Hoch",
+    levelClass: "high",
+    description: "Offene Stellen sind ein konkreter Ansatzpunkt für Social-Recruiting-Kampagnen."
   };
 }
 
@@ -1138,7 +1215,6 @@ function renderB4SRecruitingPanels(lead) {
   const count = getJobsCount(lead);
   const jobTitles = toCleanArray(lead.jobs_titles);
   const hasRecruitingData = lead.jobs_found === true || count > 0 || !!lead.jobs_status;
-
   if (!hasRecruitingData) return;
 
   const signal = getJobsSignalMeta(lead);
@@ -1242,7 +1318,7 @@ function renderDrawer(leadId) {
   }
 
   // VF-spezifische UI-Elemente ein/ausblenden
-  const isVFCompany = companyData?.id === 3;
+  const isVFCompany = isViralityFilmsCompany();
 
   // Telefonische Freigabe Box
   const vfSection = document.getElementById("vfCallApprovalSection");
@@ -1295,7 +1371,7 @@ function renderDrawer(leadId) {
   setText("dPitch", lead.final_sales_hook || lead.sales_hook || "–");
   setText("dChannel", formatChannelLabel(lead.recommended_channel || "–"));
 
-  // Ausschließlich für Brand4Social / company_id 2: sichtbares Recruiting-Signal ergänzen
+  // Nur Brand4Social / Company 2: Recruiting-Signal aus Jobs-Daten darstellen.
   renderB4SRecruitingPanels(lead);
 
   // Analyse Tab
@@ -1317,17 +1393,9 @@ function renderDrawer(leadId) {
   setText("dAuditPotential", total >= 70 ? "Hoch" : total >= 45 ? "Mittel" : "Niedrig");
   setText("dPriorityVal", lead.priority || "C");
 
-  // Video
-  // Brand4Social / company_id 2:
-  // Sobald eine fertige Pitchlane-URL vorhanden ist, wird das Video angezeigt.
-  // Dies funktioniert auch bei video_status = "ready" und status = "outreach_active".
-  // Für alle anderen Companies bleibt die bisherige completed-Logik unverändert.
-  const b4sFinalVideoUrl = isBrand4SocialCompany()
-    ? (lead.pitchlane_video_url || lead.video_url || null)
-    : null;
-
+  // Video – Brand4Social zeigt fertige Pitchlane-URL auch bei status "ready" / "outreach_active".
   const displayVideoUrl = isBrand4SocialCompany()
-    ? b4sFinalVideoUrl
+    ? (lead.pitchlane_video_url || lead.video_url || null)
     : (lead.video_status === "completed" ? lead.video_url : null);
 
   const videoIsProcessing = isBrand4SocialCompany()
