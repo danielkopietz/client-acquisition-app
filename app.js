@@ -840,11 +840,10 @@ function renderLeadTable() {
 
   tbody.innerHTML = filtered.map(l => {
     const email = l.final_email || l.findymail_email || l.email || "";
-    // contact_person hat Priorität (manuell geändert vom Vertrieb)
-    // inhaber_* als Fallback wenn contact_person leer
-    const contact = l.contact_person ||
-      (l.inhaber_vorname ? `${l.inhaber_vorname} ${l.inhaber_nachname || ""}`.trim() : null) ||
-      l.managing_director || "–";
+    const isVF = companyData?.id === 3;
+    const contact = isVF
+      ? (l.contact_person || (l.inhaber_vorname ? `${l.inhaber_vorname} ${l.inhaber_nachname || ""}`.trim() : null) || l.managing_director || "–")
+      : ((l.inhaber_vorname ? `${l.inhaber_vorname} ${l.inhaber_nachname || ""}`.trim() : null) || l.contact_person || l.managing_director || "–");
     const score = l.opportunity_score || 0;
     const scoreColor = score >= 70 ? "green" : score >= 45 ? "" : "amber";
     const selectable = selectionEnabled && isLeadSelectable(l);
@@ -1096,6 +1095,25 @@ function renderDrawer(leadId) {
     const approved = lead.call_approved === true;
     callApprovalState.textContent = approved ? "Freigabe erteilt" : "Nicht freigegeben";
     callApprovalState.className = approved ? "call-approval-state approved" : "call-approval-state";
+  }
+
+  // VF-spezifische UI-Elemente ein/ausblenden
+  const isVFCompany = companyData?.id === 3;
+
+  // Telefonische Freigabe Box
+  const vfSection = document.getElementById("vfCallApprovalSection");
+  if (vfSection) vfSection.classList.toggle("hidden", !isVFCompany);
+
+  // Editierbare Felder (VF) vs. readonly Spans (andere)
+  document.querySelectorAll(".vf-show").forEach(el => el.classList.toggle("hidden", !isVFCompany));
+  document.querySelectorAll(".vf-hide").forEach(el => el.classList.toggle("hidden", isVFCompany));
+
+  // Für B4S: readonly Spans mit Werten befüllen
+  if (!isVFCompany) {
+    const aspVal = (lead.inhaber_vorname ? `${lead.inhaber_vorname} ${lead.inhaber_nachname || ""}`.trim() : null) || lead.contact_person || lead.managing_director || "–";
+    setText("dAnsp", aspVal);
+    setText("dEmail", lead.email || lead.final_email || lead.findymail_email || "–");
+    setText("dPhone", lead.phone || "–");
   }
 
   if (originalManagingDirector) {

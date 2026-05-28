@@ -404,26 +404,32 @@
         <!-- STAMMDATEN mit inline Freigabe -->
         <input type="hidden" id="callCompanyName" />
         <div class="detail-grid">
-          <label class="detail-row" for="callContactPerson" style="cursor:text;">
+          <!-- Ansprechpartner: VF=editierbar, andere=readonly span -->
+          <div class="detail-row">
             <span class="detail-label">Ansprechpartner</span>
-            <input type="text" id="callContactPerson" placeholder="–" style="border:none;background:transparent;font-size:14px;font-weight:600;color:var(--text-1);text-align:right;padding:0;width:0;flex:1;outline:none;min-width:0;" />
-          </label>
+            <span id="dAnsp" class="vf-hide">–</span>
+            <input type="text" id="callContactPerson" class="inline-edit-field vf-show hidden" placeholder="–" style="border:none;border-bottom:1px solid var(--border);background:transparent;font-size:14px;font-weight:600;color:var(--text-1);text-align:right;padding:2px 4px;width:60%;outline:none;" />
+          </div>
           <div class="detail-row"><span class="detail-label">Stadt</span><span id="dCity">–</span></div>
           <div class="detail-row"><span class="detail-label">Branche</span><span id="dIndustry">–</span></div>
-          <label class="detail-row" for="callEmail" style="cursor:text;">
+          <!-- E-Mail: VF=editierbar, andere=readonly span -->
+          <div class="detail-row">
             <span class="detail-label">E-Mail</span>
-            <input type="email" id="callEmail" placeholder="–" style="border:none;background:transparent;font-size:14px;font-weight:600;color:var(--text-1);text-align:right;padding:0;width:0;flex:1;outline:none;min-width:0;" />
-          </label>
-          <label class="detail-row" for="callPhone" style="cursor:text;">
+            <span id="dEmail" class="vf-hide">–</span>
+            <input type="email" id="callEmail" class="inline-edit-field vf-show hidden" placeholder="–" style="border:none;border-bottom:1px solid var(--border);background:transparent;font-size:14px;font-weight:600;color:var(--text-1);text-align:right;padding:2px 4px;width:60%;outline:none;" />
+          </div>
+          <!-- Telefon: VF=editierbar, andere=readonly span -->
+          <div class="detail-row">
             <span class="detail-label">Telefon</span>
-            <input type="tel" id="callPhone" placeholder="–" style="border:none;background:transparent;font-size:14px;font-weight:600;color:var(--text-1);text-align:right;padding:0;width:0;flex:1;outline:none;min-width:0;" />
-          </label>
+            <span id="dPhone" class="vf-hide">–</span>
+            <input type="tel" id="callPhone" class="inline-edit-field vf-show hidden" placeholder="–" style="border:none;border-bottom:1px solid var(--border);background:transparent;font-size:14px;font-weight:600;color:var(--text-1);text-align:right;padding:2px 4px;width:60%;outline:none;" />
+          </div>
           <div class="detail-row"><span class="detail-label">Website</span><span id="dWebsite">–</span></div>
           <div class="detail-row"><span class="detail-label">CRM Sync</span><span id="dCrmSync">Nein</span></div>
         </div>
 
-        <!-- TELEFONISCHE FREIGABE -->
-        <div class="detail-section" style="margin-top:16px;padding:14px;border:1px solid var(--border);border-radius:10px;">
+        <!-- TELEFONISCHE FREIGABE — nur für VF (company_id=3), per JS eingeblendet -->
+        <div id="vfCallApprovalSection" class="detail-section hidden" style="margin-top:16px;padding:14px;border:1px solid var(--border);border-radius:10px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
             <span style="font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted)">TELEFONISCHE FREIGABE</span>
             <span id="callApprovalState" class="call-approval-state">Nicht freigegeben</span>
