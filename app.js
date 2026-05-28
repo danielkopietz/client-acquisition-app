@@ -557,6 +557,9 @@ async function generateMailDraft(leadId) {
 function applyCompanyBranding() {
   if (!companyData) return;
 
+  // B4S-only Dashboard-Erweiterungen: CSS/Module nur für company_id 2 aktivieren
+  document.documentElement.classList.toggle("tenant-company-2", Number(companyData.id) === 2);
+
   // Firmenname
   if (companyData.company_name) {
     document.getElementById("sidebarCompanyName").textContent = companyData.company_name;
@@ -867,6 +870,7 @@ function renderLeadTable() {
         <td>
           <div class="td-name">${esc(l.lead_name)}</div>
           <div class="td-city">${esc(l.city || "")}${l.industry ? ` · ${esc(l.industry)}` : ""}</div>
+          ${renderB4SJobsInlineSignal(l)}
         </td>
         <td>
           <div class="td-contact">${esc(contact)}</div>
@@ -1045,6 +1049,145 @@ function escClass(value) {
   return String(value || "default").toLowerCase().replace(/[^a-z0-9_-]/g, "-");
 }
 
+// ─────────────────────────────────────────────────────────────
+// COMPANY 2 / BRAND4SOCIAL – RECRUITING-SIGNAL IM DASHBOARD
+// Diese Erweiterung rendert ausschließlich bei company_id = 2.
+// ─────────────────────────────────────────────────────────────
+function isBrand4SocialCompany() {
+  return Number(companyData?.id) === 2;
+}
+
+function getJobsCount(lead) {
+  const storedCount = Number(lead?.jobs_count || 0);
+  const titlesCount = toCleanArray(lead?.jobs_titles).length;
+  return Math.max(storedCount, titlesCount);
+}
+
+function getJobsSignalMeta(lead) {
+  const count = getJobsCount(lead);
+  const score = Number(lead?.jobs_score || 0);
+  const found = lead?.jobs_found === true || count > 0;
+
+  if (!found) {
+    return {
+      label: "Kein aktives Signal",
+      levelClass: "none",
+      description: "Keine aktiven Stellenanzeigen erkannt."
+    };
+  }
+
+  if (score >= 80 || count >= 5) {
+    return {
+      label: "Sehr hoch",
+      levelClass: "very-high",
+      description: "Aktive Personalgewinnung signalisiert Wachstum und konkretes Potenzial für Recruiting-Automatisierung."
+    };
+  }
+
+  if (score >= 60 || count >= 1) {
+    return {
+      label: "Hoch",
+      levelClass: "high",
+      description: "Offene Stellen erkannt – ein relevantes Signal für Recruiting- und Prozesslösungen."
+    };
+  }
+
+  return {
+    label: "Signal erkannt",
+    levelClass: "signal",
+    description: "Eine Karriere- oder Recruiting-Aktivität wurde erkannt."
+  };
+}
+
+function renderB4SJobsInlineSignal(lead) {
+  if (!isBrand4SocialCompany()) return "";
+
+  const count = getJobsCount(lead);
+  if (!(lead?.jobs_found === true || count > 0)) return "";
+
+  return `
+    <div class="b4s-table-job-signal" title="${esc(lead.jobs_notes || "Aktive Stellenanzeigen erkannt")}">
+      <span class="b4s-table-job-dot"></span>
+      ${count} aktive Stelle${count === 1 ? "" : "n"}
+    </div>
+  `;
+}
+
+function removeB4SRecruitingPanels() {
+  document.getElementById("b4sRecruitingOverviewCard")?.remove();
+  document.getElementById("b4sRecruitingAnalysisCard")?.remove();
+}
+
+function insertB4SPanelBeforeAnchor(panel, anchorId) {
+  const anchor = document.getElementById(anchorId);
+  if (!anchor) return false;
+
+  const reference = anchor.closest(
+    ".insight-card, .detail-section, .overview-card, .analysis-section, .content-card, .analysis-box"
+  ) || anchor.parentElement;
+
+  if (!reference || !reference.parentNode) return false;
+  reference.parentNode.insertBefore(panel, reference);
+  return true;
+}
+
+function renderB4SRecruitingPanels(lead) {
+  removeB4SRecruitingPanels();
+  if (!isBrand4SocialCompany()) return;
+
+  const count = getJobsCount(lead);
+  const jobTitles = toCleanArray(lead.jobs_titles);
+  const hasRecruitingData = lead.jobs_found === true || count > 0 || !!lead.jobs_status;
+
+  if (!hasRecruitingData) return;
+
+  const signal = getJobsSignalMeta(lead);
+  const shownTitles = jobTitles.slice(0, 4);
+  const remainingCount = Math.max(0, jobTitles.length - shownTitles.length);
+  const notes = lead.jobs_notes || signal.description;
+
+  const overviewCard = document.createElement("section");
+  overviewCard.id = "b4sRecruitingOverviewCard";
+  overviewCard.className = "b4s-recruiting-card b4s-recruiting-overview";
+  overviewCard.innerHTML = `
+    <div class="b4s-recruiting-head">
+      <div>
+        <div class="b4s-recruiting-kicker"><span></span>Recruiting-Signal</div>
+        <div class="b4s-recruiting-value">${count} aktive Stellenanzeige${count === 1 ? "" : "n"} gefunden</div>
+      </div>
+      <span class="b4s-recruiting-level ${signal.levelClass}">${esc(signal.label)}</span>
+    </div>
+    <p class="b4s-recruiting-copy">${esc(signal.description)}</p>
+    ${shownTitles.length ? `
+      <div class="b4s-job-chips">
+        ${shownTitles.map(title => `<span class="b4s-job-chip">${esc(title)}</span>`).join("")}
+        ${remainingCount ? `<span class="b4s-job-chip more">+ ${remainingCount} weitere</span>` : ""}
+      </div>
+    ` : ""}
+  `;
+  insertB4SPanelBeforeAnchor(overviewCard, "dWeaknessTags");
+
+  const analysisCard = document.createElement("section");
+  analysisCard.id = "b4sRecruitingAnalysisCard";
+  analysisCard.className = "b4s-recruiting-card b4s-recruiting-analysis";
+  analysisCard.innerHTML = `
+    <div class="b4s-recruiting-head">
+      <div>
+        <div class="b4s-recruiting-kicker"><span></span>Stellenanzeigen-Analyse</div>
+        <div class="b4s-recruiting-value">${count} Treffer · Score ${Number(lead.jobs_score || 0)} / 100</div>
+      </div>
+      <span class="b4s-recruiting-level ${signal.levelClass}">${esc(signal.label)}</span>
+    </div>
+    <p class="b4s-recruiting-copy">${esc(notes)}</p>
+    ${jobTitles.length ? `
+      <ol class="b4s-job-list">
+        ${jobTitles.map(title => `<li>${esc(title)}</li>`).join("")}
+      </ol>
+    ` : '<div class="b4s-job-empty">Keine konkreten Jobtitel verfügbar.</div>'}
+  `;
+  insertB4SPanelBeforeAnchor(analysisCard, "dMarketingAnalysis");
+}
+
 function renderDrawer(leadId) {
   const lead = leads.find(l => Number(l.id) === Number(leadId));
   if (!lead) return;
@@ -1151,6 +1294,9 @@ function renderDrawer(leadId) {
 
   setText("dPitch", lead.final_sales_hook || lead.sales_hook || "–");
   setText("dChannel", formatChannelLabel(lead.recommended_channel || "–"));
+
+  // Ausschließlich für Brand4Social / company_id 2: sichtbares Recruiting-Signal ergänzen
+  renderB4SRecruitingPanels(lead);
 
   // Analyse Tab
   const ws = Number(lead.website_score ?? lead.pagespeed_score ?? lead.mobile_score ?? 0);
