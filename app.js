@@ -792,10 +792,11 @@ async function startSelectedAnalysis() {
     return;
   }
 
+  const confirmText = companyData?.id === 3
+    ? "Die Leads werden vollständig analysiert und an Pitchlane + Instantly übergeben."
+    : "Die Leads werden angereichert, analysiert, mit Pitchlane vorbereitet und an Instantly übergeben.";
   const confirmed = window.confirm(
-    `${selectedAnalysisLeadIds.length} Leads analysieren?\n\n` +
-    `Es werden ${selectedAnalysisLeadIds.length} Credits verbraucht.\n` +
-    `companyData?.id === 3 ? "Die freigegebenen Leads werden vollständig analysiert. Nach dem Anruf-Check wird automatisch ein Video erstellt und an Instantly übergeben." : "Die Leads werden angereichert, analysiert, mit Pitchlane vorbereitet und an Instantly übergeben."`
+    `${selectedAnalysisLeadIds.length} Leads analysieren?\n\nEs werden ${selectedAnalysisLeadIds.length} Credits verbraucht.\n${confirmText}`
   );
 
   if (!confirmed) return;
