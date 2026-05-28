@@ -1108,13 +1108,13 @@ function renderDrawer(leadId) {
   document.querySelectorAll(".vf-show").forEach(el => el.classList.toggle("hidden", !isVFCompany));
   document.querySelectorAll(".vf-hide").forEach(el => el.classList.toggle("hidden", isVFCompany));
 
-  // Für B4S: readonly Spans mit Werten befüllen
-  if (!isVFCompany) {
-    const aspVal = (lead.inhaber_vorname ? `${lead.inhaber_vorname} ${lead.inhaber_nachname || ""}`.trim() : null) || lead.contact_person || lead.managing_director || "–";
-    setText("dAnsp", aspVal);
-    setText("dEmail", lead.email || lead.final_email || lead.findymail_email || "–");
-    setText("dPhone", lead.phone || "–");
-  }
+  // Readonly Spans immer befüllen (B4S sichtbar, VF versteckt via CSS)
+  const aspVal = isVFCompany
+    ? (lead.contact_person || (lead.inhaber_vorname ? `${lead.inhaber_vorname} ${lead.inhaber_nachname || ""}`.trim() : null) || lead.managing_director || "–")
+    : ((lead.inhaber_vorname ? `${lead.inhaber_vorname} ${lead.inhaber_nachname || ""}`.trim() : null) || lead.contact_person || lead.managing_director || "–");
+  setText("dAnsp", aspVal);
+  setText("dEmail", lead.email || lead.final_email || lead.findymail_email || "–");
+  setText("dPhone", lead.phone || "–");
 
   if (originalManagingDirector) {
     const manuallyAdjusted = lead.managing_director && lead.contact_person && lead.managing_director !== lead.contact_person;
