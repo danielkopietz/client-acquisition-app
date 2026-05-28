@@ -1318,18 +1318,43 @@ function renderDrawer(leadId) {
   setText("dPriorityVal", lead.priority || "C");
 
   // Video
-  if (lead.video_status === "completed" && lead.video_url) {
+  // Brand4Social / company_id 2:
+  // Sobald eine fertige Pitchlane-URL vorhanden ist, wird das Video angezeigt.
+  // Dies funktioniert auch bei video_status = "ready" und status = "outreach_active".
+  // Für alle anderen Companies bleibt die bisherige completed-Logik unverändert.
+  const b4sFinalVideoUrl = isBrand4SocialCompany()
+    ? (lead.pitchlane_video_url || lead.video_url || null)
+    : null;
+
+  const displayVideoUrl = isBrand4SocialCompany()
+    ? b4sFinalVideoUrl
+    : (lead.video_status === "completed" ? lead.video_url : null);
+
+  const videoIsProcessing = isBrand4SocialCompany()
+    ? (
+        lead.video_status === "pending" ||
+        lead.pitchlane_status === "pending" ||
+        ["QUEUED_FOR_RECORDING", "RENDERING", "PROCESSING"].includes(lead.pitchlane_rendering_status)
+      )
+    : lead.video_status === "pending";
+
+  if (displayVideoUrl) {
     document.getElementById("videoContent").innerHTML = `
       <div class="video-embed">
-        <iframe src="${esc(lead.video_url)}" allowfullscreen></iframe>
+        <iframe
+          src="${esc(displayVideoUrl)}"
+          title="Personalisiertes Audit Video"
+          allow="autoplay; fullscreen; picture-in-picture"
+          allowfullscreen
+        ></iframe>
       </div>
     `;
   } else {
     document.getElementById("videoContent").innerHTML = `
       <div class="video-placeholder">
         <span class="video-badge">Audit Video</span>
-        <p class="video-placeholder-title">${lead.video_status === "pending" ? "Video wird gerendert…" : "Noch nicht generiert"}</p>
-        <p class="video-placeholder-sub">${lead.video_status === "pending" ? "Bitte warte einige Minuten." : "Per Klick auf 'Audit Video generieren' wird eine Vorschau erzeugt."}</p>
+        <p class="video-placeholder-title">${videoIsProcessing ? "Video wird gerendert…" : "Video noch nicht verfügbar"}</p>
+        <p class="video-placeholder-sub">${videoIsProcessing ? "Bitte warte einige Minuten – die Vorschau erscheint nach Fertigstellung automatisch." : "Für diesen Lead ist aktuell keine abrufbare Video-URL gespeichert."}</p>
       </div>
     `;
   }
