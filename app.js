@@ -46,8 +46,8 @@ function getSelectedAnalysisPolicy() {
       enabled: true,
       key: "viralityfilms",
       maxLeads: 50,
-      requiresCallApproval: true,
-      allowedStatuses: ["new", "no_email", "contact_confirmed", "ready_for_analysis", "called", "approved"]
+      requiresCallApproval: false,  // Analyse läuft sofort - Pitchlane/Instantly nach call_approved
+      allowedStatuses: ["new", "no_email", "contact_confirmed", "ready_for_analysis", "called", "approved", "ready"]
     };
   }
 
@@ -465,36 +465,32 @@ async function saveCallApproval(leadId) {
   const lead = leads.find(l => Number(l.id) === Number(leadId));
   if (!lead) return;
 
-  const leadName = document.getElementById("callCompanyName")?.value.trim() || "";
+  // VF: leadName aus lead-Objekt (hidden field unzuverlässig)
+  const leadName = lead.lead_name || lead.company_name || "";
   const contactPerson = document.getElementById("callContactPerson")?.value.trim() || "";
   const email = document.getElementById("callEmail")?.value.trim() || "";
   const phone = document.getElementById("callPhone")?.value.trim() || "";
   const callApproved = document.getElementById("callApproved")?.checked === true;
   const callNotes = document.getElementById("callNotes")?.value.trim() || "";
 
-  if (!leadName) {
-    showToast("Bitte den Firmennamen eintragen.", "error");
-    return;
-  }
-
-  if (callApproved && !contactPerson) {
-    showToast("Für die Freigabe bitte den zuständigen Ansprechpartner eintragen.", "error");
-    return;
-  }
-
-  if (callApproved && !email) {
-    showToast("Für die Freigabe muss eine E-Mail-Adresse hinterlegt sein.", "error");
-    return;
+  if (isViralityFilmsCompany()) {
+    // VF: Nur E-Mail-Pflicht wenn Freigabe erteilt wird
+    if (callApproved && !email) {
+      showToast("Für die Freigabe muss eine E-Mail-Adresse hinterlegt sein.", "error");
+      return;
+    }
   }
 
   const updates = {
     lead_name: leadName,
-    contact_person: contactPerson,
-    email,
-    phone,
+    contact_person: contactPerson || undefined,
+    email: email || undefined,
+    phone: phone || undefined,
     call_approved: callApproved,
     call_notes: callNotes
   };
+  // undefined-Werte entfernen damit COALESCE die DB-Werte behält
+  Object.keys(updates).forEach(k => updates[k] === undefined && delete updates[k]);
 
   const button = document.getElementById("saveCallApprovalBtn");
   const originalText = button?.textContent || "Kontakt & Freigabe speichern";
@@ -527,10 +523,10 @@ async function saveCallApproval(leadId) {
     renderLeadTable();
     await loadStats();
 
-    showToast(
-      callApproved ? "Kontakt und Freigabe gespeichert." : "Kontaktdaten gespeichert.",
-      "success"
-    );
+    const toastMsg = isViralityFilmsCompany() && callApproved
+      ? "Freigabe gespeichert. Pitchlane-Video wird automatisch erstellt."
+      : callApproved ? "Kontakt und Freigabe gespeichert." : "Kontaktdaten gespeichert.";
+    showToast(toastMsg, "success");
   } catch (err) {
     showToast(`Speichern fehlgeschlagen: ${err.message}`, "error");
   } finally {
