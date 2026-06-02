@@ -1192,8 +1192,7 @@ function getJobsSignalMeta(lead) {
 }
 
 function renderB4SJobsInlineSignal(lead) {
-  if (!isBrand4SocialCompany()) return "";
-
+  // Für beide Companies: Stellen unter dem Firmennamen anzeigen
   const count = getJobsCount(lead);
   if (!(lead?.jobs_found === true || count > 0)) return "";
 
@@ -1225,7 +1224,7 @@ function insertB4SPanelBeforeAnchor(panel, anchorId) {
 
 function renderB4SRecruitingPanels(lead) {
   removeB4SRecruitingPanels();
-  if (!isBrand4SocialCompany()) return;
+  // Recruiting-Panels für alle Companies anzeigen
 
   const count = getJobsCount(lead);
   const jobTitles = toCleanArray(lead.jobs_titles);
