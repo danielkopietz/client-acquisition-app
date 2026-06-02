@@ -615,6 +615,20 @@ function applyCompanyBranding() {
   document.documentElement.classList.toggle("tenant-company-2", isBrand4SocialCompany());
   document.documentElement.classList.toggle("tenant-company-3", isViralityFilmsCompany());
 
+  // Spalten-Sichtbarkeit: Offene Stellen nur für B4S (company 2)
+  const styleId = "tenant-col-style";
+  let styleEl = document.getElementById(styleId);
+  if (!styleEl) {
+    styleEl = document.createElement("style");
+    styleEl.id = styleId;
+    document.head.appendChild(styleEl);
+  }
+  if (isBrand4SocialCompany()) {
+    styleEl.textContent = ".col-jobs-b4s { display: table-cell; }";
+  } else {
+    styleEl.textContent = ".col-jobs-b4s { display: none; }";
+  }
+
   // Firmenname
   if (companyData.company_name) {
     document.getElementById("sidebarCompanyName").textContent = companyData.company_name;
@@ -927,7 +941,8 @@ function renderLeadTable() {
   renderSelectedAnalysisToolbar();
 
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="${selectionEnabled ? 11 : 10}" class="empty-row">Keine Leads gefunden.</td></tr>`;
+    const cols = selectionEnabled ? 11 : 10;
+    tbody.innerHTML = `<tr><td colspan="${cols}" class="empty-row">Keine Leads gefunden.</td></tr>`;
     return;
   }
 
@@ -968,10 +983,6 @@ function renderLeadTable() {
         <td>${scoreCell(l.website_score || l.pagespeed_score || 0, "")}</td>
         <td>${l.instagram_found ? `${l.instagram_followers || 0} Follower` : '<span style="color:var(--muted)">–</span>'}</td>
         <td><span class="ads-badge ${l.ads_found ? "has-ads" : "no-ads"}">${l.ads_found ? "Aktiv" : "Keine Ads"}</span></td>
-        <td>${l.jobs_found || Number(l.jobs_count) > 0
-          ? `<span style="color:var(--accent);font-weight:600">${Number(l.jobs_count) || '?'} Stelle${Number(l.jobs_count) === 1 ? '' : 'n'}</span>`
-          : '<span style="color:var(--muted)">–</span>'
-        }</td>
         <td>${scoreCell(score, scoreColor)}</td>
         <td>${statusBadge(l.status || l.outreach_status)}</td>
         <td>${priorityBadge(l.priority)}</td>
