@@ -46,8 +46,8 @@ function getSelectedAnalysisPolicy() {
       enabled: true,
       key: "viralityfilms",
       maxLeads: 50,
-      requiresCallApproval: false,  // Analyse läuft sofort - Pitchlane/Instantly nach call_approved
-      allowedStatuses: ["new", "no_email", "contact_confirmed", "ready_for_analysis", "called", "approved", "ready"]
+      requiresCallApproval: true,
+      allowedStatuses: ["new", "no_email", "contact_confirmed", "ready_for_analysis", "called", "approved"]
     };
   }
 
@@ -465,32 +465,36 @@ async function saveCallApproval(leadId) {
   const lead = leads.find(l => Number(l.id) === Number(leadId));
   if (!lead) return;
 
-  // VF: leadName aus lead-Objekt (hidden field unzuverlässig)
-  const leadName = lead.lead_name || lead.company_name || "";
+  const leadName = document.getElementById("callCompanyName")?.value.trim() || "";
   const contactPerson = document.getElementById("callContactPerson")?.value.trim() || "";
   const email = document.getElementById("callEmail")?.value.trim() || "";
   const phone = document.getElementById("callPhone")?.value.trim() || "";
   const callApproved = document.getElementById("callApproved")?.checked === true;
   const callNotes = document.getElementById("callNotes")?.value.trim() || "";
 
-  if (isViralityFilmsCompany()) {
-    // VF: Nur E-Mail-Pflicht wenn Freigabe erteilt wird
-    if (callApproved && !email) {
-      showToast("Für die Freigabe muss eine E-Mail-Adresse hinterlegt sein.", "error");
-      return;
-    }
+  if (!leadName) {
+    showToast("Bitte den Firmennamen eintragen.", "error");
+    return;
+  }
+
+  if (callApproved && !contactPerson) {
+    showToast("Für die Freigabe bitte den zuständigen Ansprechpartner eintragen.", "error");
+    return;
+  }
+
+  if (callApproved && !email) {
+    showToast("Für die Freigabe muss eine E-Mail-Adresse hinterlegt sein.", "error");
+    return;
   }
 
   const updates = {
     lead_name: leadName,
-    contact_person: contactPerson || undefined,
-    email: email || undefined,
-    phone: phone || undefined,
+    contact_person: contactPerson,
+    email,
+    phone,
     call_approved: callApproved,
     call_notes: callNotes
   };
-  // undefined-Werte entfernen damit COALESCE die DB-Werte behält
-  Object.keys(updates).forEach(k => updates[k] === undefined && delete updates[k]);
 
   const button = document.getElementById("saveCallApprovalBtn");
   const originalText = button?.textContent || "Kontakt & Freigabe speichern";
@@ -523,10 +527,10 @@ async function saveCallApproval(leadId) {
     renderLeadTable();
     await loadStats();
 
-    const toastMsg = isViralityFilmsCompany() && callApproved
-      ? "Freigabe gespeichert. Pitchlane-Video wird automatisch erstellt."
-      : callApproved ? "Kontakt und Freigabe gespeichert." : "Kontaktdaten gespeichert.";
-    showToast(toastMsg, "success");
+    showToast(
+      callApproved ? "Kontakt und Freigabe gespeichert." : "Kontaktdaten gespeichert.",
+      "success"
+    );
   } catch (err) {
     showToast(`Speichern fehlgeschlagen: ${err.message}`, "error");
   } finally {
@@ -923,7 +927,7 @@ function renderLeadTable() {
   renderSelectedAnalysisToolbar();
 
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="${selectionEnabled ? 10 : 9}" class="empty-row">Keine Leads gefunden.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${selectionEnabled ? 11 : 10}" class="empty-row">Keine Leads gefunden.</td></tr>`;
     return;
   }
 
@@ -964,6 +968,10 @@ function renderLeadTable() {
         <td>${scoreCell(l.website_score || l.pagespeed_score || 0, "")}</td>
         <td>${l.instagram_found ? `${l.instagram_followers || 0} Follower` : '<span style="color:var(--muted)">–</span>'}</td>
         <td><span class="ads-badge ${l.ads_found ? "has-ads" : "no-ads"}">${l.ads_found ? "Aktiv" : "Keine Ads"}</span></td>
+        <td>${l.jobs_found || Number(l.jobs_count) > 0
+          ? `<span style="color:var(--accent);font-weight:600">${Number(l.jobs_count) || '?'} Stelle${Number(l.jobs_count) === 1 ? '' : 'n'}</span>`
+          : '<span style="color:var(--muted)">–</span>'
+        }</td>
         <td>${scoreCell(score, scoreColor)}</td>
         <td>${statusBadge(l.status || l.outreach_status)}</td>
         <td>${priorityBadge(l.priority)}</td>
@@ -1424,6 +1432,32 @@ function renderDrawer(leadId) {
   }
 
   setText("dMarketingAnalysis", lead.marketing_analysis || "Noch keine Analyse vorhanden.");
+
+  // Jobs-Auflistung im Analyse-Tab (VF)
+  const jobsSection = document.getElementById("dJobsSection");
+  if (jobsSection) {
+    const jobTitles = Array.isArray(lead.jobs_titles) ? lead.jobs_titles.filter(Boolean) : [];
+    const jobCount = Number(lead.jobs_count || 0);
+    const jobsFound = lead.jobs_found === true || jobCount > 0;
+    if (jobsFound && jobTitles.length > 0) {
+      jobsSection.innerHTML = `
+        <div style="margin-top:12px;padding:12px;background:var(--surface-2);border-radius:8px;">
+          <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:8px;">
+            🏢 ${jobCount} offene Stelle${jobCount === 1 ? '' : 'n'} gefunden
+          </div>
+          <ul style="margin:0;padding-left:16px;font-size:13px;color:var(--text-2);">
+            ${jobTitles.map(t => `<li style="margin-bottom:4px;">${esc(t)}</li>`).join('')}
+          </ul>
+        </div>`;
+      jobsSection.classList.remove("hidden");
+    } else if (jobsFound) {
+      jobsSection.innerHTML = `<div style="margin-top:8px;font-size:13px;color:var(--accent);">🏢 ${jobCount} offene Stelle${jobCount === 1 ? '' : 'n'} gefunden</div>`;
+      jobsSection.classList.remove("hidden");
+    } else {
+      jobsSection.innerHTML = "";
+      jobsSection.classList.add("hidden");
+    }
+  }
 
   // CRM Tab
   document.getElementById("crmStatus").value = lead.status || "new";
