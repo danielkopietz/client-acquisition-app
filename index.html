@@ -172,20 +172,97 @@
               <p class="card-sub">Suche, analysiere und bewerte potenzielle Neukunden automatisch.</p>
             </div>
             <div class="scan-form">
-              <div class="form-row">
-                <div class="form-group">
-                  <label>Branche</label>
-                  <input id="industryInput" type="text" value="Social Media Agentur" placeholder="z.B. Zahnarzt, Dachdecker" />
-                </div>
-                <div class="form-group">
-                  <label>Region</label>
-                  <input id="regionInput" type="text" value="Augsburg, Deutschland" placeholder="z.B. München, Deutschland" />
-                </div>
-                <div class="form-group form-group-sm">
-                  <label>Lead Limit</label>
-                  <input id="leadLimitInput" type="number" value="5" min="1" max="100" />
+              <!-- Standard-Formular (alle außer VF) -->
+              <div id="scanFormDefault">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Branche</label>
+                    <input id="industryInput" type="text" value="Social Media Agentur" placeholder="z.B. Zahnarzt, Dachdecker" />
+                  </div>
+                  <div class="form-group">
+                    <label>Region</label>
+                    <input id="regionInput" type="text" value="Augsburg, Deutschland" placeholder="z.B. München, Deutschland" />
+                  </div>
+                  <div class="form-group form-group-sm">
+                    <label>Lead Limit</label>
+                    <input id="leadLimitInput" type="number" value="5" min="1" max="100" />
+                  </div>
                 </div>
               </div>
+
+              <!-- Apollo-Formular (nur Company 3 / Viralityfilms) -->
+              <div id="scanFormApollo" class="hidden">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Branche</label>
+                    <select id="apolloIndustrySelect">
+                      <option value="Maschinenbau">Maschinenbau</option>
+                      <option value="Automotive">Automotive / Zulieferer</option>
+                      <option value="Metallverarbeitung">Metallverarbeitung</option>
+                      <option value="Elektrotechnik">Elektrotechnik</option>
+                      <option value="Kunststofftechnik">Kunststofftechnik</option>
+                      <option value="Logistik">Logistik / Transport</option>
+                      <option value="Bauunternehmen">Bauunternehmen</option>
+                      <option value="Handwerk">Handwerk / Handwerksbetrieb</option>
+                      <option value="Lebensmittelproduktion">Lebensmittelproduktion</option>
+                      <option value="Pharmaindustrie">Pharmaindustrie</option>
+                      <option value="Medizintechnik">Medizintechnik</option>
+                      <option value="IT-Dienstleister">IT-Dienstleister</option>
+                      <option value="Unternehmensberatung">Unternehmensberatung</option>
+                      <option value="Immobilien">Immobilien</option>
+                      <option value="Einzelhandel">Einzelhandel</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Bundesland</label>
+                    <select id="apolloRegionSelect">
+                      <option value="Bayern">Bayern</option>
+                      <option value="Baden-Württemberg">Baden-Württemberg</option>
+                      <option value="Nordrhein-Westfalen">Nordrhein-Westfalen</option>
+                      <option value="Hessen">Hessen</option>
+                      <option value="Niedersachsen">Niedersachsen</option>
+                      <option value="Sachsen">Sachsen</option>
+                      <option value="Rheinland-Pfalz">Rheinland-Pfalz</option>
+                      <option value="Berlin">Berlin</option>
+                      <option value="Hamburg">Hamburg</option>
+                      <option value="Thüringen">Thüringen</option>
+                      <option value="Brandenburg">Brandenburg</option>
+                      <option value="Sachsen-Anhalt">Sachsen-Anhalt</option>
+                      <option value="Schleswig-Holstein">Schleswig-Holstein</option>
+                      <option value="Mecklenburg-Vorpommern">Mecklenburg-Vorpommern</option>
+                      <option value="Saarland">Saarland</option>
+                      <option value="Bremen">Bremen</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-row" style="margin-top:10px;">
+                  <div class="form-group">
+                    <label>Mitarbeiter (von)</label>
+                    <select id="apolloMinEmployees">
+                      <option value="1">1+</option>
+                      <option value="11">11+</option>
+                      <option value="51" selected>51+</option>
+                      <option value="201">201+</option>
+                      <option value="501">501+</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Mitarbeiter (bis)</label>
+                    <select id="apolloMaxEmployees">
+                      <option value="10">bis 10</option>
+                      <option value="50">bis 50</option>
+                      <option value="200" selected>bis 200</option>
+                      <option value="500">bis 500</option>
+                      <option value="10000">500+</option>
+                    </select>
+                  </div>
+                  <div class="form-group form-group-sm">
+                    <label>Anzahl Leads</label>
+                    <input id="apolloLeadLimit" type="number" value="25" min="1" max="100" />
+                  </div>
+                </div>
+              </div>
+
               <div class="scan-actions">
                 <button id="startScanBtn" class="btn btn-primary btn-lg">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>

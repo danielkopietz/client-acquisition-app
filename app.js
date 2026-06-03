@@ -215,6 +215,7 @@ async function loadCompanyData() {
     const data = await apiRequest("/companies");
     companyData = Array.isArray(data) ? data[0] : data;
     applyCompanyBranding();
+    initScanForm();
   } catch (err) {
     console.warn("Company-Daten konnten nicht geladen werden:", err);
   }
@@ -268,10 +269,37 @@ async function loadScans() {
 // ─────────────────────────────────────────────────────────────
 // SCAN STARTEN
 // ─────────────────────────────────────────────────────────────
+// Scan-Formular je nach Company umschalten (nur VF = Company 3 bekommt Apollo-Formular)
+function initScanForm() {
+  const isVF = Number(companyData?.id) === 3;
+  const defaultForm = document.getElementById("scanFormDefault");
+  const apolloForm = document.getElementById("scanFormApollo");
+  if (!defaultForm || !apolloForm) return;
+  if (isVF) {
+    defaultForm.classList.add("hidden");
+    apolloForm.classList.remove("hidden");
+  } else {
+    defaultForm.classList.remove("hidden");
+    apolloForm.classList.add("hidden");
+  }
+}
+
 async function startScan() {
-  const industry = document.getElementById("industryInput").value.trim();
-  const region = document.getElementById("regionInput").value.trim();
-  const leadLimit = parseInt(document.getElementById("leadLimitInput").value) || 5;
+  const isVF = Number(companyData?.id) === 3;
+
+  let industry, region, leadLimit, minEmployees, maxEmployees;
+
+  if (isVF) {
+    industry     = document.getElementById("apolloIndustrySelect")?.value || "";
+    region       = document.getElementById("apolloRegionSelect")?.value || "";
+    leadLimit    = parseInt(document.getElementById("apolloLeadLimit")?.value) || 25;
+    minEmployees = parseInt(document.getElementById("apolloMinEmployees")?.value) || 51;
+    maxEmployees = parseInt(document.getElementById("apolloMaxEmployees")?.value) || 200;
+  } else {
+    industry  = document.getElementById("industryInput").value.trim();
+    region    = document.getElementById("regionInput").value.trim();
+    leadLimit = parseInt(document.getElementById("leadLimitInput").value) || 5;
+  }
 
   if (!industry || !region) {
     showToast("Bitte Branche und Region eingeben.", "error");
@@ -292,26 +320,32 @@ async function startScan() {
   statusText.textContent = "Scan wird erstellt…";
 
   try {
-    // 1. Scan in DB anlegen via API
+    const payload = {
+      company_id: companyData.id,
+      industry,
+      region,
+      lead_limit: leadLimit
+    };
+
+    // VF: Apollo-Filter mitschicken
+    if (isVF) {
+      payload.min_employees = minEmployees;
+      payload.max_employees = maxEmployees;
+      payload.source = "apollo";
+    }
+
     const scanData = await apiRequest("/scans", {
       method: "POST",
-      body: JSON.stringify({
-        company_id: companyData.id,
-        industry,
-        region,
-        lead_limit: leadLimit
-      })
+      body: JSON.stringify(payload)
     });
 
     const scanId = scanData?.scan?.id || scanData?.id || scanData?.scan_id;
     activeScanId = scanId;
     statusText.textContent = `Scan #${scanId} gestartet – analysiere Leads…`;
 
-    // n8n wird bereits von der API getriggert
     addActivity("Scan gestartet", `Scan #${scanId} für "${industry}" in ${region} gestartet.`);
     showToast(`Scan #${scanId} läuft!`);
 
-    // 3. Polling starten
     startScanPolling(scanId);
 
   } catch (err) {
