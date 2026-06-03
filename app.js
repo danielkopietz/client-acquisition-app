@@ -269,6 +269,7 @@ async function loadScans() {
 // ─────────────────────────────────────────────────────────────
 // SCAN STARTEN
 // ─────────────────────────────────────────────────────────────
+
 // Scan-Formular je nach Company umschalten (nur VF = Company 3 bekommt Apollo-Formular)
 function initScanForm() {
   const isVF = Number(companyData?.id) === 3;
@@ -287,11 +288,12 @@ function initScanForm() {
 async function startScan() {
   const isVF = Number(companyData?.id) === 3;
 
-  let industry, region, leadLimit, minEmployees, maxEmployees;
+  let industry, region, city, leadLimit, minEmployees, maxEmployees;
 
   if (isVF) {
     industry     = document.getElementById("apolloIndustrySelect")?.value || "";
     region       = document.getElementById("apolloRegionSelect")?.value || "";
+    city         = document.getElementById("apolloCityInput")?.value.trim() || "";
     leadLimit    = parseInt(document.getElementById("apolloLeadLimit")?.value) || 25;
     minEmployees = parseInt(document.getElementById("apolloMinEmployees")?.value) || 51;
     maxEmployees = parseInt(document.getElementById("apolloMaxEmployees")?.value) || 200;
@@ -327,11 +329,12 @@ async function startScan() {
       lead_limit: leadLimit
     };
 
-    // VF: Apollo-Filter mitschicken
+    // VF: Apollo-Filter + optionale Stadt mitschicken
     if (isVF) {
       payload.min_employees = minEmployees;
       payload.max_employees = maxEmployees;
       payload.source = "apollo";
+      if (city) payload.city = city;
     }
 
     const scanData = await apiRequest("/scans", {
@@ -341,9 +344,11 @@ async function startScan() {
 
     const scanId = scanData?.scan?.id || scanData?.id || scanData?.scan_id;
     activeScanId = scanId;
+
+    const locationLabel = (isVF && city) ? `${city} (${region})` : region;
     statusText.textContent = `Scan #${scanId} gestartet – analysiere Leads…`;
 
-    addActivity("Scan gestartet", `Scan #${scanId} für "${industry}" in ${region} gestartet.`);
+    addActivity("Scan gestartet", `Scan #${scanId} für "${industry}" in ${locationLabel} gestartet.`);
     showToast(`Scan #${scanId} läuft!`);
 
     startScanPolling(scanId);
