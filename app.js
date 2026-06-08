@@ -532,9 +532,17 @@ async function saveCallApproval(leadId) {
       body: JSON.stringify(updates)
     });
 
+    // WICHTIG: leads-Array ZUERST aktualisieren, dann renderDrawer aufrufen
+    // Sonst überschreibt renderDrawer die Felder mit alten Werten
     const index = leads.findIndex(l => Number(l.id) === Number(leadId));
     if (index >= 0) {
-      leads[index] = { ...leads[index], ...updates, ...updatedLead };
+      leads[index] = {
+        ...leads[index],
+        ...updates,
+        ...(updatedLead || {}),
+        // call_approved explizit sichern – PATCH gibt es im RETURNING zurück
+        call_approved: updatedLead?.call_approved ?? callApproved
+      };
     }
 
     addTimelineEntry(
@@ -548,6 +556,8 @@ async function saveCallApproval(leadId) {
     renderDrawer(leadId);
     renderLeadTable();
     await loadStats();
+    // Frische DB-Daten laden damit beim nächsten Drawer-Open alles stimmt
+    loadLeads().catch(() => {});
 
     showToast(
       callApproved ? "Kontakt und Freigabe gespeichert." : "Kontaktdaten gespeichert.",
@@ -1601,30 +1611,44 @@ function bindEvents() {
 
   // Telefonische Kontaktfreigabe
   document.getElementById("saveCallApprovalBtn")?.addEventListener("click", () => {
-    if (selectedLeadId) saveCallApproval(selectedLeadId);
+    const id = selectedLeadId;
+    if (!id) { console.warn("saveCallApproval: kein selectedLeadId"); return; }
+    saveCallApproval(id);
   });
 
   document.getElementById("disqualifyBtn")?.addEventListener("click", () => {
-    if (selectedLeadId) disqualifyLead(selectedLeadId);
+    const id = selectedLeadId;
+    if (!id) return;
+    disqualifyLead(id);
   });
 
   // CRM
   document.getElementById("saveCrmBtn")?.addEventListener("click", () => {
-    if (selectedLeadId) saveCrmData(selectedLeadId);
+    const id = selectedLeadId;
+    if (!id) return;
+    saveCrmData(id);
   });
 
   // Quick Actions
   document.getElementById("genCallHookBtn")?.addEventListener("click", () => {
-    if (selectedLeadId) generateCallHook(selectedLeadId);
+    const id = selectedLeadId;
+    if (!id) return;
+    generateCallHook(id);
   });
   document.getElementById("genMailBtn")?.addEventListener("click", () => {
-    if (selectedLeadId) generateMailDraft(selectedLeadId);
+    const id = selectedLeadId;
+    if (!id) return;
+    generateMailDraft(id);
   });
   document.getElementById("genVideoBtn")?.addEventListener("click", () => {
-    if (selectedLeadId) generateVideo(selectedLeadId);
+    const id = selectedLeadId;
+    if (!id) return;
+    generateVideo(id);
   });
   document.getElementById("sendOutreachBtn")?.addEventListener("click", () => {
-    if (selectedLeadId) sendToOutreach(selectedLeadId);
+    const id = selectedLeadId;
+    if (!id) return;
+    sendToOutreach(id);
   });
 
   // Reports
