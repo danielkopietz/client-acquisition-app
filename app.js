@@ -215,7 +215,6 @@ async function loadCompanyData() {
     const data = await apiRequest("/companies");
     companyData = Array.isArray(data) ? data[0] : data;
     applyCompanyBranding();
-    initScanForm();
   } catch (err) {
     console.warn("Company-Daten konnten nicht geladen werden:", err);
   }
@@ -269,39 +268,10 @@ async function loadScans() {
 // ─────────────────────────────────────────────────────────────
 // SCAN STARTEN
 // ─────────────────────────────────────────────────────────────
-
-// Scan-Formular je nach Company umschalten (nur VF = Company 3 bekommt Apollo-Formular)
-function initScanForm() {
-  const isVF = Number(companyData?.id) === 3;
-  const defaultForm = document.getElementById("scanFormDefault");
-  const apolloForm = document.getElementById("scanFormApollo");
-  if (!defaultForm || !apolloForm) return;
-  if (isVF) {
-    defaultForm.classList.add("hidden");
-    apolloForm.classList.remove("hidden");
-  } else {
-    defaultForm.classList.remove("hidden");
-    apolloForm.classList.add("hidden");
-  }
-}
-
 async function startScan() {
-  const isVF = Number(companyData?.id) === 3;
-
-  let industry, region, city, leadLimit, minEmployees, maxEmployees;
-
-  if (isVF) {
-    industry     = document.getElementById("apolloIndustrySelect")?.value || "";
-    region       = document.getElementById("apolloRegionSelect")?.value || "";
-    city         = document.getElementById("apolloCityInput")?.value.trim() || "";
-    leadLimit    = parseInt(document.getElementById("apolloLeadLimit")?.value) || 25;
-    minEmployees = parseInt(document.getElementById("apolloMinEmployees")?.value) || 51;
-    maxEmployees = parseInt(document.getElementById("apolloMaxEmployees")?.value) || 200;
-  } else {
-    industry  = document.getElementById("industryInput").value.trim();
-    region    = document.getElementById("regionInput").value.trim();
-    leadLimit = parseInt(document.getElementById("leadLimitInput").value) || 5;
-  }
+  const industry = document.getElementById("industryInput").value.trim();
+  const region = document.getElementById("regionInput").value.trim();
+  const leadLimit = parseInt(document.getElementById("leadLimitInput").value) || 5;
 
   if (!industry || !region) {
     showToast("Bitte Branche und Region eingeben.", "error");
@@ -322,35 +292,26 @@ async function startScan() {
   statusText.textContent = "Scan wird erstellt…";
 
   try {
-    const payload = {
-      company_id: companyData.id,
-      industry,
-      region,
-      lead_limit: leadLimit
-    };
-
-    // VF: Apollo-Filter + optionale Stadt mitschicken
-    if (isVF) {
-      payload.min_employees = minEmployees;
-      payload.max_employees = maxEmployees;
-      payload.source = "apollo";
-      if (city) payload.city = city;
-    }
-
+    // 1. Scan in DB anlegen via API
     const scanData = await apiRequest("/scans", {
       method: "POST",
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        company_id: companyData.id,
+        industry,
+        region,
+        lead_limit: leadLimit
+      })
     });
 
     const scanId = scanData?.scan?.id || scanData?.id || scanData?.scan_id;
     activeScanId = scanId;
-
-    const locationLabel = (isVF && city) ? `${city} (${region})` : region;
     statusText.textContent = `Scan #${scanId} gestartet – analysiere Leads…`;
 
-    addActivity("Scan gestartet", `Scan #${scanId} für "${industry}" in ${locationLabel} gestartet.`);
+    // n8n wird bereits von der API getriggert
+    addActivity("Scan gestartet", `Scan #${scanId} für "${industry}" in ${region} gestartet.`);
     showToast(`Scan #${scanId} läuft!`);
 
+    // 3. Polling starten
     startScanPolling(scanId);
 
   } catch (err) {
@@ -653,20 +614,6 @@ function applyCompanyBranding() {
   // Tenant-spezifische Darstellungen bleiben strikt getrennt.
   document.documentElement.classList.toggle("tenant-company-2", isBrand4SocialCompany());
   document.documentElement.classList.toggle("tenant-company-3", isViralityFilmsCompany());
-
-  // Spalten-Sichtbarkeit: Offene Stellen nur für B4S (company 2)
-  const styleId = "tenant-col-style";
-  let styleEl = document.getElementById(styleId);
-  if (!styleEl) {
-    styleEl = document.createElement("style");
-    styleEl.id = styleId;
-    document.head.appendChild(styleEl);
-  }
-  if (isBrand4SocialCompany()) {
-    styleEl.textContent = ".col-jobs-b4s { display: table-cell; }";
-  } else {
-    styleEl.textContent = ".col-jobs-b4s { display: none; }";
-  }
 
   // Firmenname
   if (companyData.company_name) {
@@ -980,8 +927,7 @@ function renderLeadTable() {
   renderSelectedAnalysisToolbar();
 
   if (!filtered.length) {
-    const cols = selectionEnabled ? 11 : 10;
-    tbody.innerHTML = `<tr><td colspan="${cols}" class="empty-row">Keine Leads gefunden.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${selectionEnabled ? 10 : 9}" class="empty-row">Keine Leads gefunden.</td></tr>`;
     return;
   }
 
@@ -1023,7 +969,10 @@ function renderLeadTable() {
         <td>${l.instagram_found ? `${l.instagram_followers || 0} Follower` : '<span style="color:var(--muted)">–</span>'}</td>
         <td><span class="ads-badge ${l.ads_found ? "has-ads" : "no-ads"}">${l.ads_found ? "Aktiv" : "Keine Ads"}</span></td>
         <td>${scoreCell(score, scoreColor)}</td>
-        <td>${statusBadge(l.status || l.outreach_status)}</td>
+        <td>
+          ${statusBadge(l.status || l.outreach_status)}
+          ${l.pitchlane_hot_lead ? '<span class="badge badge-video" title="Video komplett gesehen" style="margin-left:4px;">🔥 Hot</span>' : ''}
+        </td>
         <td>${priorityBadge(l.priority)}</td>
         <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); openDrawer(${l.id})">Öffnen</button></td>
       </tr>
@@ -1177,12 +1126,18 @@ function formatStatusLabel(value) {
     processing: "In Analyse",
     analyzed: "Analysiert",
     analysed: "Analysiert",
+    analysiert: "Analysiert",
     qualified: "Qualifiziert",
     video_requested: "Video läuft",
     video_ready: "Video bereit",
     outreach_active: "Outreach",
     sent: "Outreach",
     active: "Outreach",
+    email_sent: "E-Mail gesendet",
+    email_opened: "E-Mail geöffnet",
+    replied: "Geantwortet ✓",
+    bounced: "Bounced",
+    unsubscribed: "Abgemeldet",
     outreach_completed: "Abgeschlossen"
   };
   return map[value] || value || "Neu";
@@ -1231,7 +1186,8 @@ function getJobsSignalMeta(lead) {
 }
 
 function renderB4SJobsInlineSignal(lead) {
-  // Für beide Companies: Stellen unter dem Firmennamen anzeigen
+  if (!isBrand4SocialCompany()) return "";
+
   const count = getJobsCount(lead);
   if (!(lead?.jobs_found === true || count > 0)) return "";
 
@@ -1263,7 +1219,7 @@ function insertB4SPanelBeforeAnchor(panel, anchorId) {
 
 function renderB4SRecruitingPanels(lead) {
   removeB4SRecruitingPanels();
-  // Recruiting-Panels für alle Companies anzeigen
+  if (!isBrand4SocialCompany()) return;
 
   const count = getJobsCount(lead);
   const jobTitles = toCleanArray(lead.jobs_titles);
@@ -1481,6 +1437,49 @@ function renderDrawer(leadId) {
   }
 
   setText("dMarketingAnalysis", lead.marketing_analysis || "Noch keine Analyse vorhanden.");
+
+  // Pitchlane Engagement + E-Mail Status (nur VF)
+  const engagementSection = document.getElementById("dEngagementSection");
+  if (engagementSection && isViralityFilmsCompany()) {
+    const hotLead = lead.pitchlane_hot_lead === true;
+    const videoOpened = lead.pitchlane_video_opened === true;
+    const videoStarted = lead.pitchlane_video_started === true;
+    const videoFinished = lead.pitchlane_video_finished === true;
+    const viewCount = Number(lead.pitchlane_video_view_count || 0);
+    const outreachStatus = lead.outreach_status || lead.status || '';
+    const emailEvents = {
+      email_sent: '📧 E-Mail gesendet',
+      email_opened: '👁 E-Mail geöffnet',
+      replied: '✅ Geantwortet',
+      bounced: '❌ Bounced',
+      unsubscribed: '🚫 Abgemeldet'
+    };
+    const emailLabel = emailEvents[outreachStatus] || null;
+    const hasData = hotLead || emailLabel || videoOpened || videoStarted || videoFinished;
+    if (hasData) {
+      let html = '<div style="margin-top:12px;">';
+      if (hotLead) {
+        html += '<div style="background:linear-gradient(135deg,#ff5c00,#ff8c00);color:#fff;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-weight:700;font-size:14px;">🔥 Hot Lead — Video vollständig gesehen!</div>';
+      }
+      if (emailLabel) {
+        html += `<div style="padding:8px 12px;background:var(--surface-2);border-radius:6px;margin-bottom:6px;font-size:13px;">${emailLabel}</div>`;
+      }
+      if (videoOpened || videoStarted || videoFinished) {
+        html += '<div style="padding:8px 12px;background:var(--surface-2);border-radius:6px;font-size:13px;">';
+        html += '<div style="font-weight:600;margin-bottom:4px;color:var(--accent);">🎬 Pitchlane Video</div>';
+        html += `<div>${videoOpened ? '✓' : '○'} Geöffnet${viewCount > 1 ? ` (${viewCount}×)` : ''}</div>`;
+        html += `<div>${videoStarted ? '✓' : '○'} Abgespielt</div>`;
+        html += `<div>${videoFinished ? '✓' : '○'} Vollständig gesehen</div>`;
+        html += '</div>';
+      }
+      html += '</div>';
+      engagementSection.innerHTML = html;
+      engagementSection.classList.remove("hidden");
+    } else {
+      engagementSection.innerHTML = '';
+      engagementSection.classList.add("hidden");
+    }
+  }
 
   // Jobs-Auflistung im Analyse-Tab (VF)
   const jobsSection = document.getElementById("dJobsSection");
@@ -1787,12 +1786,18 @@ function statusBadge(s) {
     processing: ["In Analyse", "badge-B"],
     analyzed: ["Analysiert", "badge-qualified"],
     analysed: ["Analysiert", "badge-qualified"],
+    analysiert: ["Analysiert", "badge-qualified"],
     qualified: ["Qualifiziert", "badge-qualified"],
     video_requested: ["Video läuft", "badge-video"],
     video_ready: ["Video ✓", "badge-video"],
     outreach_active: ["Outreach", "badge-sent"],
     sent: ["Outreach", "badge-sent"],
     active: ["Outreach", "badge-sent"],
+    email_sent: ["E-Mail gesendet", "badge-sent"],
+    email_opened: ["E-Mail geöffnet", "badge-video"],
+    replied: ["Geantwortet ✓", "badge-qualified"],
+    bounced: ["Bounced", "badge-B"],
+    unsubscribed: ["Abgemeldet", "badge-B"],
     outreach_completed: ["Abgeschlossen", "badge-qualified"]
   };
   const [label, cls] = map[s] || [s || "Neu", "badge-new"];
