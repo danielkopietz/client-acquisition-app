@@ -245,6 +245,10 @@ async function loadLeads(page = 1) {
     });
     console.log("Leads geladen:", leads.length);
     renderAll();
+    // Drawer neu rendern wenn offen – aber nur wenn kein aktiver Speichervorgang läuft
+    if (selectedLeadId && !document.getElementById("saveCallApprovalBtn")?.disabled) {
+      renderDrawer(selectedLeadId);
+    }
   } catch (err) {
     console.error("Leads laden:", err);
     leads = [];
@@ -556,8 +560,8 @@ async function saveCallApproval(leadId) {
     renderDrawer(leadId);
     renderLeadTable();
     await loadStats();
-    // Frische DB-Daten laden damit beim nächsten Drawer-Open alles stimmt
-    loadLeads().catch(() => {});
+    // Frische DB-Daten nach kurzem Delay laden (DB braucht Zeit zum Schreiben)
+    setTimeout(() => loadLeads().catch(() => {}), 800);
 
     showToast(
       callApproved ? "Kontakt und Freigabe gespeichert." : "Kontaktdaten gespeichert.",
