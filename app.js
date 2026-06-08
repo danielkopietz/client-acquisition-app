@@ -461,6 +461,28 @@ async function sendToOutreach(leadId) {
 // ─────────────────────────────────────────────────────────────
 // TELEFONISCHE KONTAKTFREIGABE SPEICHERN
 // ─────────────────────────────────────────────────────────────
+async function disqualifyLead(leadId) {
+  if (!isViralityFilmsCompany()) return;
+  if (!confirm("Lead als 'Kein Interesse' markieren? Diese Aktion kann nicht rückgängig gemacht werden.")) return;
+  try {
+    const updatedLead = await apiRequest(`/leads/${leadId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        status: "no_interest",
+        call_notes: (document.getElementById("callNotes")?.value || "") + " [Kein Interesse – manuell markiert]"
+      })
+    });
+    const idx = leads.findIndex(l => Number(l.id) === Number(leadId));
+    if (idx >= 0) leads[idx] = { ...leads[idx], status: "no_interest", ...updatedLead };
+    addTimelineEntry(leadId, "Kein Interesse", "Lead wurde als 'Kein Interesse' markiert.");
+    renderDrawer(leadId);
+    renderLeadTable();
+    showToast("Lead als 'Kein Interesse' markiert.", "success");
+  } catch (err) {
+    showToast("Fehler beim Speichern: " + err.message, "error");
+  }
+}
+
 async function saveCallApproval(leadId) {
   const lead = leads.find(l => Number(l.id) === Number(leadId));
   if (!lead) return;
@@ -969,10 +991,7 @@ function renderLeadTable() {
         <td>${l.instagram_found ? `${l.instagram_followers || 0} Follower` : '<span style="color:var(--muted)">–</span>'}</td>
         <td><span class="ads-badge ${l.ads_found ? "has-ads" : "no-ads"}">${l.ads_found ? "Aktiv" : "Keine Ads"}</span></td>
         <td>${scoreCell(score, scoreColor)}</td>
-        <td>
-          ${statusBadge(l.status || l.outreach_status)}
-          ${l.pitchlane_hot_lead ? '<span class="badge badge-video" title="Video komplett gesehen" style="margin-left:4px;">🔥 Hot</span>' : ''}
-        </td>
+        <td>${statusBadge(l.status || l.outreach_status)}</td>
         <td>${priorityBadge(l.priority)}</td>
         <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); openDrawer(${l.id})">Öffnen</button></td>
       </tr>
@@ -1126,19 +1145,15 @@ function formatStatusLabel(value) {
     processing: "In Analyse",
     analyzed: "Analysiert",
     analysed: "Analysiert",
-    analysiert: "Analysiert",
     qualified: "Qualifiziert",
     video_requested: "Video läuft",
     video_ready: "Video bereit",
     outreach_active: "Outreach",
     sent: "Outreach",
     active: "Outreach",
-    email_sent: "E-Mail gesendet",
-    email_opened: "E-Mail geöffnet",
-    replied: "Geantwortet ✓",
-    bounced: "Bounced",
-    unsubscribed: "Abgemeldet",
-    outreach_completed: "Abgeschlossen"
+    outreach_completed: "Abgeschlossen",
+    no_interest: "Kein Interesse",
+    disqualified: "Nicht qualifiziert"
   };
   return map[value] || value || "Neu";
 }
@@ -1320,6 +1335,15 @@ function renderDrawer(leadId) {
   if (callApproved) callApproved.checked = lead.call_approved === true;
   if (callNotes) callNotes.value = lead.call_notes || "";
 
+  const disqualifyState = document.getElementById("disqualifyState");
+  if (disqualifyState && isViralityFilmsCompany()) {
+    if (lead.status === "no_interest") {
+      disqualifyState.classList.remove("hidden");
+    } else {
+      disqualifyState.classList.add("hidden");
+    }
+  }
+
   if (callApprovalState) {
     const approved = lead.call_approved === true;
     callApprovalState.textContent = approved ? "Freigabe erteilt" : "Nicht freigegeben";
@@ -1437,75 +1461,6 @@ function renderDrawer(leadId) {
   }
 
   setText("dMarketingAnalysis", lead.marketing_analysis || "Noch keine Analyse vorhanden.");
-
-  // Pitchlane Engagement + E-Mail Status (nur VF)
-  const engagementSection = document.getElementById("dEngagementSection");
-  if (engagementSection && isViralityFilmsCompany()) {
-    const hotLead = lead.pitchlane_hot_lead === true;
-    const videoOpened = lead.pitchlane_video_opened === true;
-    const videoStarted = lead.pitchlane_video_started === true;
-    const videoFinished = lead.pitchlane_video_finished === true;
-    const viewCount = Number(lead.pitchlane_video_view_count || 0);
-    const outreachStatus = lead.outreach_status || lead.status || '';
-    const emailEvents = {
-      email_sent: '📧 E-Mail gesendet',
-      email_opened: '👁 E-Mail geöffnet',
-      replied: '✅ Geantwortet',
-      bounced: '❌ Bounced',
-      unsubscribed: '🚫 Abgemeldet'
-    };
-    const emailLabel = emailEvents[outreachStatus] || null;
-    const hasData = hotLead || emailLabel || videoOpened || videoStarted || videoFinished;
-    if (hasData) {
-      let html = '<div style="margin-top:12px;">';
-      if (hotLead) {
-        html += '<div style="background:linear-gradient(135deg,#ff5c00,#ff8c00);color:#fff;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-weight:700;font-size:14px;">🔥 Hot Lead — Video vollständig gesehen!</div>';
-      }
-      if (emailLabel) {
-        html += `<div style="padding:8px 12px;background:var(--surface-2);border-radius:6px;margin-bottom:6px;font-size:13px;">${emailLabel}</div>`;
-      }
-      if (videoOpened || videoStarted || videoFinished) {
-        html += '<div style="padding:8px 12px;background:var(--surface-2);border-radius:6px;font-size:13px;">';
-        html += '<div style="font-weight:600;margin-bottom:4px;color:var(--accent);">🎬 Pitchlane Video</div>';
-        html += `<div>${videoOpened ? '✓' : '○'} Geöffnet${viewCount > 1 ? ` (${viewCount}×)` : ''}</div>`;
-        html += `<div>${videoStarted ? '✓' : '○'} Abgespielt</div>`;
-        html += `<div>${videoFinished ? '✓' : '○'} Vollständig gesehen</div>`;
-        html += '</div>';
-      }
-      html += '</div>';
-      engagementSection.innerHTML = html;
-      engagementSection.classList.remove("hidden");
-    } else {
-      engagementSection.innerHTML = '';
-      engagementSection.classList.add("hidden");
-    }
-  }
-
-  // Jobs-Auflistung im Analyse-Tab (VF)
-  const jobsSection = document.getElementById("dJobsSection");
-  if (jobsSection) {
-    const jobTitles = Array.isArray(lead.jobs_titles) ? lead.jobs_titles.filter(Boolean) : [];
-    const jobCount = Number(lead.jobs_count || 0);
-    const jobsFound = lead.jobs_found === true || jobCount > 0;
-    if (jobsFound && jobTitles.length > 0) {
-      jobsSection.innerHTML = `
-        <div style="margin-top:12px;padding:12px;background:var(--surface-2);border-radius:8px;">
-          <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:8px;">
-            🏢 ${jobCount} offene Stelle${jobCount === 1 ? '' : 'n'} gefunden
-          </div>
-          <ul style="margin:0;padding-left:16px;font-size:13px;color:var(--text-2);">
-            ${jobTitles.map(t => `<li style="margin-bottom:4px;">${esc(t)}</li>`).join('')}
-          </ul>
-        </div>`;
-      jobsSection.classList.remove("hidden");
-    } else if (jobsFound) {
-      jobsSection.innerHTML = `<div style="margin-top:8px;font-size:13px;color:var(--accent);">🏢 ${jobCount} offene Stelle${jobCount === 1 ? '' : 'n'} gefunden</div>`;
-      jobsSection.classList.remove("hidden");
-    } else {
-      jobsSection.innerHTML = "";
-      jobsSection.classList.add("hidden");
-    }
-  }
 
   // CRM Tab
   document.getElementById("crmStatus").value = lead.status || "new";
@@ -1649,6 +1604,10 @@ function bindEvents() {
     if (selectedLeadId) saveCallApproval(selectedLeadId);
   });
 
+  document.getElementById("disqualifyBtn")?.addEventListener("click", () => {
+    if (selectedLeadId) disqualifyLead(selectedLeadId);
+  });
+
   // CRM
   document.getElementById("saveCrmBtn")?.addEventListener("click", () => {
     if (selectedLeadId) saveCrmData(selectedLeadId);
@@ -1786,19 +1745,15 @@ function statusBadge(s) {
     processing: ["In Analyse", "badge-B"],
     analyzed: ["Analysiert", "badge-qualified"],
     analysed: ["Analysiert", "badge-qualified"],
-    analysiert: ["Analysiert", "badge-qualified"],
     qualified: ["Qualifiziert", "badge-qualified"],
     video_requested: ["Video läuft", "badge-video"],
     video_ready: ["Video ✓", "badge-video"],
     outreach_active: ["Outreach", "badge-sent"],
     sent: ["Outreach", "badge-sent"],
     active: ["Outreach", "badge-sent"],
-    email_sent: ["E-Mail gesendet", "badge-sent"],
-    email_opened: ["E-Mail geöffnet", "badge-video"],
-    replied: ["Geantwortet ✓", "badge-qualified"],
-    bounced: ["Bounced", "badge-B"],
-    unsubscribed: ["Abgemeldet", "badge-B"],
-    outreach_completed: ["Abgeschlossen", "badge-qualified"]
+    outreach_completed: ["Abgeschlossen", "badge-qualified"],
+    no_interest: ["Kein Interesse", "badge-B"],
+    disqualified: ["Nicht qualifiziert", "badge-B"]
   };
   const [label, cls] = map[s] || [s || "Neu", "badge-new"];
   return `<span class="badge ${cls}">${label}</span>`;

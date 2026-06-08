@@ -440,7 +440,11 @@
             Unternehmen hat telefonisch zugestimmt, dass eine E-Mail gesendet werden darf.
           </label>
           <textarea id="callNotes" placeholder="Telefonnotiz: z.B. Herr Marx ist zuständig, Versand bestätigt." style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;min-height:70px;resize:vertical;margin-bottom:12px;background:var(--bg-2);color:var(--text-1);box-sizing:border-box;"></textarea>
-          <button id="saveCallApprovalBtn" class="btn btn-primary" style="width:auto;padding:9px 18px;font-size:13px;">Kontakt &amp; Freigabe speichern</button>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <button id="saveCallApprovalBtn" class="btn btn-primary" style="padding:9px 18px;font-size:13px;">Kontakt &amp; Freigabe speichern</button>
+            <button id="disqualifyBtn" class="btn btn-ghost vf-show hidden" style="padding:9px 14px;font-size:13px;color:var(--muted);border:1px solid var(--border);" title="Lead als nicht qualifiziert markieren">✕ Kein Interesse</button>
+          </div>
+          <div id="disqualifyState" class="hidden" style="margin-top:8px;padding:6px 10px;background:#fee2e2;border-radius:6px;font-size:12px;color:#b91c1c;font-weight:600;">❌ Als „Kein Interesse" markiert</div>
         </div>
 
         <div class="detail-section">
@@ -512,8 +516,6 @@
         <div class="detail-section">
           <h4>Marketing-Analyse</h4>
           <div id="dMarketingAnalysis" class="analysis-box">–</div>
-          <div id="dEngagementSection" class="hidden"></div>
-          <div id="dJobsSection" class="hidden"></div>
         </div>
 
         <div class="quick-actions">
