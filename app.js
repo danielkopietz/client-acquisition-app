@@ -15,7 +15,8 @@ const CONFIG = {
 // ─────────────────────────────────────────────────────────────
 const COMPANY_IDS = Object.freeze({
   BRAND4SOCIAL: 2,
-  VIRALITYFILMS: 3
+  VIRALITYFILMS: 3,
+  COMPANY4_RECRUITING: 4
 });
 
 function getCurrentCompanyId() {
@@ -28,6 +29,10 @@ function isBrand4SocialCompany() {
 
 function isViralityFilmsCompany() {
   return getCurrentCompanyId() === COMPANY_IDS.VIRALITYFILMS;
+}
+
+function isCompany4RecruitingCompany() {
+  return getCurrentCompanyId() === COMPANY_IDS.COMPANY4_RECRUITING;
 }
 
 function getSelectedAnalysisPolicy() {
@@ -48,6 +53,19 @@ function getSelectedAnalysisPolicy() {
       maxLeads: 50,
       requiresCallApproval: true,
       allowedStatuses: ["new", "no_email", "contact_confirmed", "ready_for_analysis", "called", "approved", "ready"]
+    };
+  }
+
+  if (isCompany4RecruitingCompany()) {
+    return {
+      enabled: true,
+      key: "company4_recruiting",
+      maxLeads: 750,
+      videoLimit: 250,
+      emailOnlyLimit: 500,
+      creditsMode: "video_only",
+      requiresCallApproval: false,
+      allowedStatuses: ["new", "no_email", "ready", "enriched", "contact_confirmed"]
     };
   }
 
@@ -770,6 +788,7 @@ function applyCompanyBranding() {
   // Tenant-spezifische Darstellungen bleiben strikt getrennt.
   document.documentElement.classList.toggle("tenant-company-2", isBrand4SocialCompany());
   document.documentElement.classList.toggle("tenant-company-3", isViralityFilmsCompany());
+  document.documentElement.classList.toggle("tenant-company-4", isCompany4RecruitingCompany());
 
   // Firmenname
   if (companyData.company_name) {
@@ -802,6 +821,42 @@ function applyCompanyBranding() {
     document.getElementById("sidebarLogo").src = companyData.logo_url;
     document.getElementById("loaderLogo").src = companyData.logo_url;
   }
+
+  applyTenantCopy();
+}
+
+function setClosestLabelText(valueId, text) {
+  const valueEl = document.getElementById(valueId);
+  const labelEl = valueEl?.parentElement?.querySelector("p, .ts-label");
+  if (labelEl) labelEl.textContent = text;
+}
+
+function setButtonText(selector, text) {
+  const el = document.querySelector(selector);
+  if (el) el.textContent = text;
+}
+
+function applyTenantCopy() {
+  if (!isCompany4RecruitingCompany()) return;
+
+  setText("topbarEyebrow", "RECRUITING OUTREACH OS");
+  setClosestLabelText("topbarALeads", "Outreach");
+  setClosestLabelText("statALeads", "Job-Signale");
+  setClosestLabelText("statAvgScore", "Outreach aktiv");
+  setClosestLabelText("statVideos", "Videos");
+
+  const scanSub = document.querySelector(".scan-card .card-sub");
+  if (scanSub) scanSub.textContent = "Stellenportale liefern neue Unternehmen mit Personalbedarf direkt ins Dashboard.";
+
+  const opportunitiesSub = document.querySelector("#opportunitiesView .card-sub");
+  if (opportunitiesSub) opportunitiesSub.textContent = "Unternehmen aus Stellenportalen auswählen und in Video- oder E-Mail-Kampagnen starten.";
+
+  const toolbarKicker = document.querySelector(".selected-analysis-kicker");
+  if (toolbarKicker) toolbarKicker.textContent = "Ausgewählte Kampagne";
+
+  setButtonText('[data-filter="a-only"]', "Neu");
+  setButtonText('[data-filter="no-ads"]', "Mit Job-Signal");
+  setButtonText("#startSelectedAnalysisBtn", "Kampagne starten");
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -839,6 +894,18 @@ function renderStatsFromLeads() {
   setText("statLeads", total);
   setText("statASP", aspFound);
   setText("statEmail", emailFound);
+
+  if (isCompany4RecruitingCompany()) {
+    const jobSignals = leads.filter(l => l.jobs_found === true || getJobsCount(l) > 0).length;
+    const outreachActive = leads.filter(l => isOutreachVisibleStatus(getLeadDisplayStatus(l))).length;
+    setText("statALeads", jobSignals);
+    setText("statAvgScore", outreachActive);
+    setText("statVideos", videos);
+    setText("topbarLeads", total);
+    setText("topbarALeads", outreachActive);
+    return;
+  }
+
   setText("statALeads", aLeads);
   setText("statAvgScore", `${avgScore}%`);
   setText("statVideos", videos);
@@ -849,11 +916,32 @@ function renderStatsFromLeads() {
 function renderTopLeads() {
   const container = document.getElementById("topLeadsPreview");
   const topLeads = [...leads]
-    .sort((a, b) => (b.opportunity_score || 0) - (a.opportunity_score || 0))
+    .sort((a, b) => {
+      if (isCompany4RecruitingCompany()) {
+        return (getJobsCount(b) - getJobsCount(a)) || (Number(b.id || 0) - Number(a.id || 0));
+      }
+      return (b.opportunity_score || 0) - (a.opportunity_score || 0);
+    })
     .slice(0, 6);
 
   if (!topLeads.length) {
     container.innerHTML = '<div class="empty-state">Noch keine Leads vorhanden. Starte einen Scan.</div>';
+    return;
+  }
+
+  if (isCompany4RecruitingCompany()) {
+    container.innerHTML = topLeads.map(l => `
+      <div class="lead-mini-card" onclick="openDrawer(${l.id})">
+        <div class="lmc-name">${esc(l.lead_name)}</div>
+        <div class="lmc-meta">${esc(l.region || l.city || "")}</div>
+        <div class="lmc-score">${getJobsCount(l)} aktive Stelle${getJobsCount(l) === 1 ? "" : "n"}</div>
+        <div class="lmc-badges">
+          ${statusBadge(getLeadDisplayStatus(l))}
+          ${l.channel ? `<span class="badge badge-new" style="font-size:10px">${esc(formatCampaignChannelLabel(l.channel))}</span>` : ""}
+          ${getLeadVideoUrl(l) ? '<span class="badge badge-video" style="font-size:10px">Video</span>' : ""}
+        </div>
+      </div>
+    `).join("");
     return;
   }
 
@@ -916,6 +1004,16 @@ function getCreditsRemaining() {
     return Number(companyData.credits_remaining) || 0;
   }
   return (Number(companyData.credits_total) || 0) - (Number(companyData.credits_used) || 0);
+}
+
+function getSelectedAnalysisSplit(count, policy = getSelectedAnalysisPolicy()) {
+  if (policy.key !== "company4_recruiting") {
+    return { videoCount: count, emailOnlyCount: 0, creditsRequired: count };
+  }
+
+  const videoCount = Math.min(count, policy.videoLimit || 250);
+  const emailOnlyCount = Math.min(Math.max(0, count - videoCount), policy.emailOnlyLimit || 500);
+  return { videoCount, emailOnlyCount, creditsRequired: videoCount };
 }
 
 function isLeadSelectable(lead) {
@@ -1000,18 +1098,26 @@ function renderSelectedAnalysisToolbar() {
   if (toolbar) toolbar.classList.toggle("hidden", !enabled);
   if (selectHeader) selectHeader.classList.toggle("hidden", !enabled);
   if (countEl) countEl.textContent = selectedCount;
-  if (creditEl) creditEl.textContent = `${selectedCount} Credit${selectedCount === 1 ? "" : "s"}`;
+  const split = getSelectedAnalysisSplit(selectedCount, policy);
+  const creditsRequired = split.creditsRequired;
+  const hasEnoughCampaignCredits = creditsRequired <= remaining;
+
+  if (creditEl) {
+    creditEl.textContent = policy.key === "company4_recruiting"
+      ? `${split.videoCount} Video-Credits · ${split.emailOnlyCount} E-Mail-only`
+      : `${selectedCount} Credit${selectedCount === 1 ? "" : "s"}`;
+  }
   if (warningEl) {
-    warningEl.textContent = hasEnoughCredits ? "" : `Nicht genug Credits verfügbar (${remaining} übrig).`;
-    warningEl.classList.toggle("hidden", hasEnoughCredits);
+    warningEl.textContent = hasEnoughCampaignCredits ? "" : `Nicht genug Credits verfügbar (${remaining} übrig, benötigt: ${creditsRequired}).`;
+    warningEl.classList.toggle("hidden", hasEnoughCampaignCredits);
   }
   if (btn) {
-    btn.disabled = !enabled || selectedCount === 0 || !hasEnoughCredits || isStartingSelectedAnalysis;
+    btn.disabled = !enabled || selectedCount === 0 || !hasEnoughCampaignCredits || isStartingSelectedAnalysis;
     btn.textContent = isStartingSelectedAnalysis
-      ? "Analyse startet…"
+      ? (policy.key === "company4_recruiting" ? "Kampagne startet…" : "Analyse startet…")
       : selectedCount > 0
-        ? `${selectedCount} Leads analysieren`
-        : "Ausgewählte Leads analysieren";
+        ? (policy.key === "company4_recruiting" ? `${selectedCount} Leads in Kampagne starten` : `${selectedCount} Leads analysieren`)
+        : (policy.key === "company4_recruiting" ? "Kampagne starten" : "Ausgewählte Leads analysieren");
   }
   if (selectAllBox) {
     selectAllBox.checked = allVisibleSelected;
@@ -1035,16 +1141,21 @@ async function startSelectedAnalysis() {
   }
 
   const remaining = getCreditsRemaining();
-  if (selectedAnalysisLeadIds.length > remaining) {
-    showToast(`Nicht genug Credits verfügbar. Übrig: ${remaining}`, "error");
+  const split = getSelectedAnalysisSplit(selectedAnalysisLeadIds.length, policy);
+  if (split.creditsRequired > remaining) {
+    showToast(`Nicht genug Credits verfügbar. Übrig: ${remaining}, benötigt: ${split.creditsRequired}`, "error");
     return;
   }
 
-  const confirmText = isViralityFilmsCompany()
-    ? "Die Leads werden vollständig analysiert und an Pitchlane + Instantly übergeben."
-    : "Die Leads werden angereichert, analysiert, mit Pitchlane vorbereitet und an Instantly übergeben.";
+  const confirmText = isCompany4RecruitingCompany()
+    ? `Die ersten ${split.videoCount} Leads gehen mit Video in die Kampagne, weitere ${split.emailOnlyCount} ohne Video. Es werden nur Video-Credits verbraucht.`
+    : isViralityFilmsCompany()
+      ? "Die Leads werden vollständig analysiert und an Pitchlane + Instantly übergeben."
+      : "Die Leads werden angereichert, analysiert, mit Pitchlane vorbereitet und an Instantly übergeben.";
   const confirmed = window.confirm(
-    `${selectedAnalysisLeadIds.length} Leads analysieren?\n\nEs werden ${selectedAnalysisLeadIds.length} Credits verbraucht.\n${confirmText}`
+    isCompany4RecruitingCompany()
+      ? `${selectedAnalysisLeadIds.length} Leads in Kampagne starten?\n\nCredits: ${split.creditsRequired}\n${confirmText}`
+      : `${selectedAnalysisLeadIds.length} Leads analysieren?\n\nEs werden ${selectedAnalysisLeadIds.length} Credits verbraucht.\n${confirmText}`
   );
 
   if (!confirmed) return;
@@ -1061,8 +1172,13 @@ async function startSelectedAnalysis() {
       })
     });
 
-    showToast(`${result.queued_count || selectedAnalysisLeadIds.length} Leads wurden zur Analyse gestartet.`, "success");
-    addActivity("Analyse gestartet", `${result.queued_count || selectedAnalysisLeadIds.length} ausgewählte Leads wurden an WF02 übergeben.`);
+    if (isCompany4RecruitingCompany()) {
+      showToast(`${result.queued_count || selectedAnalysisLeadIds.length} Leads wurden in die Kampagne gestartet.`, "success");
+      addActivity("Kampagne gestartet", `${result.video_count || 0} Video-Leads und ${result.email_only_count || 0} E-Mail-only-Leads wurden an WF02 übergeben.`);
+    } else {
+      showToast(`${result.queued_count || selectedAnalysisLeadIds.length} Leads wurden zur Analyse gestartet.`, "success");
+      addActivity("Analyse gestartet", `${result.queued_count || selectedAnalysisLeadIds.length} ausgewählte Leads wurden an WF02 übergeben.`);
+    }
     selectedAnalysisLeadIds = [];
     await loadCompanyData();
     await Promise.all([loadStats(), loadLeads()]);
@@ -1084,6 +1200,12 @@ function renderLeadTable() {
 
   if (!filtered.length) {
     tbody.innerHTML = `<tr><td colspan="${selectionEnabled ? 10 : 9}" class="empty-row">Keine Leads gefunden.</td></tr>`;
+    return;
+  }
+
+  if (isCompany4RecruitingCompany()) {
+    tbody.innerHTML = filtered.map(l => renderCompany4LeadRow(l, selectionEnabled)).join("");
+    renderSelectedAnalysisToolbar();
     return;
   }
 
@@ -1132,6 +1254,60 @@ function renderLeadTable() {
   renderSelectedAnalysisToolbar();
 }
 
+function formatCampaignChannelLabel(value) {
+  const map = {
+    video: "Video",
+    email_only: "E-Mail-only",
+    email: "E-Mail"
+  };
+  return map[value] || value || "Noch nicht gestartet";
+}
+
+function renderCompany4LeadRow(l, selectionEnabled) {
+  const email = getLeadEmail(l);
+  const contact = getLeadContactPerson(l);
+  const selectable = selectionEnabled && isLeadSelectable(l);
+  const checked = selectedAnalysisLeadIds.includes(Number(l.id));
+  const jobTitles = toCleanArray(l.jobs_titles).slice(0, 2);
+  const jobsCount = getJobsCount(l);
+  const website = l.website || l.website_url || "";
+  const selectionCell = selectionEnabled ? `
+      <td class="select-cell" onclick="event.stopPropagation()">
+        <input
+          type="checkbox"
+          class="lead-select-checkbox"
+          ${selectable ? "" : "disabled"}
+          ${checked ? "checked" : ""}
+          onchange="toggleAnalysisLead(${l.id})"
+          aria-label="Lead ${esc(l.lead_name)} auswählen"
+        />
+      </td>` : "";
+
+  return `
+    <tr onclick="openDrawer(${l.id})" class="${selectable ? "selectable-lead-row" : ""}">
+      ${selectionCell}
+      <td>
+        <div class="td-name">${esc(l.lead_name)}</div>
+        <div class="td-city">${esc(l.region || l.city || "")}</div>
+      </td>
+      <td>
+        <div class="td-contact">${jobsCount ? `${jobsCount} aktive Stelle${jobsCount === 1 ? "" : "n"}` : "Job-Signal"}</div>
+        <div class="td-email">${jobTitles.length ? esc(jobTitles.join(", ")) : esc(l.notes || "Aus Stellenportal importiert")}</div>
+      </td>
+      <td>${website ? `<a href="${esc(website)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">Website</a>` : '<span style="color:var(--muted)">–</span>'}</td>
+      <td>
+        <div class="td-contact">${esc(contact)}</div>
+        <div class="td-email">${l.phone ? esc(l.phone) : ""}</div>
+      </td>
+      <td>${email ? `<a href="mailto:${esc(email)}" onclick="event.stopPropagation()">${esc(email)}</a>` : "–"}</td>
+      <td><span class="badge badge-new">${esc(formatCampaignChannelLabel(l.channel))}</span></td>
+      <td>${statusBadge(getLeadDisplayStatus(l))}</td>
+      <td>${priorityBadge(l.priority)}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); openDrawer(${l.id})">Öffnen</button></td>
+    </tr>
+  `;
+}
+
 function filterLeads() {
   const search = document.getElementById("searchInput")?.value?.toLowerCase() || "";
   const priorityVal = document.getElementById("priorityFilter")?.value || "";
@@ -1149,7 +1325,12 @@ function filterLeads() {
     const matchStatus = !statusVal || displayStatus === statusVal || l.status === statusVal || l.outreach_status === statusVal;
 
     let matchFilter = true;
-    if (activeQuickFilter === "a-only") matchFilter = l.priority === "A";
+    if (isCompany4RecruitingCompany()) {
+      if (activeQuickFilter === "a-only") matchFilter = ["new", "ready", "enriched", "no_email"].includes(l.status || "new");
+      else if (activeQuickFilter === "no-ads") matchFilter = l.jobs_found === true || getJobsCount(l) > 0;
+      else if (activeQuickFilter === "email-ready") matchFilter = !!(l.final_email || l.findymail_email || l.email);
+      else if (activeQuickFilter === "video-ready") matchFilter = l.video_status === "completed" || l.video_status === "ready" || !!l.video_url;
+    } else if (activeQuickFilter === "a-only") matchFilter = l.priority === "A";
     else if (activeQuickFilter === "no-ads") matchFilter = !l.ads_found;
     else if (activeQuickFilter === "email-ready") matchFilter = !!(l.final_email || l.findymail_email || l.email);
     else if (activeQuickFilter === "video-ready") matchFilter = l.video_status === "completed" || l.video_status === "ready" || !!l.video_url;
@@ -1358,9 +1539,10 @@ function formatStatusLabel(value) {
     new: "Neu",
     hubspot_imported: "Bereit",
     no_email: "Ohne E-Mail",
-    processing: "In Analyse",
+    processing: isCompany4RecruitingCompany() ? "In Kampagne" : "In Analyse",
     analyzed: "Analysiert",
     analysed: "Analysiert",
+    enriched: "Angereichert",
     qualified: "Qualifiziert",
     video_requested: "Video läuft",
     video_ready: "Video bereit",
@@ -1426,7 +1608,7 @@ function getJobsSignalMeta(lead) {
 }
 
 function renderB4SJobsInlineSignal(lead) {
-  if (!isBrand4SocialCompany()) return "";
+  if (!isBrand4SocialCompany() && !isCompany4RecruitingCompany()) return "";
 
   const count = getJobsCount(lead);
   if (!(lead?.jobs_found === true || count > 0)) return "";
@@ -1966,9 +2148,10 @@ function statusBadge(s) {
     new: ["Neu", "badge-new"],
     hubspot_imported: ["Bereit", "badge-new"],
     no_email: ["Ohne E-Mail", "badge-B"],
-    processing: ["In Analyse", "badge-B"],
+    processing: [isCompany4RecruitingCompany() ? "In Kampagne" : "In Analyse", "badge-B"],
     analyzed: ["Analysiert", "badge-qualified"],
     analysed: ["Analysiert", "badge-qualified"],
+    enriched: ["Angereichert", "badge-qualified"],
     qualified: ["Qualifiziert", "badge-qualified"],
     video_requested: ["Video läuft", "badge-video"],
     video_ready: ["Video ✓", "badge-video"],
