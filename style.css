@@ -1200,3 +1200,58 @@
   }
 }
 
+
+/* ───────────────────────────────────────────────────────────── */
+/* TENANT: COMPANY 4 (Bluekazi GmbH) – blaues Branding            */
+/* Greift NUR wenn <html class="tenant-company-4"> (von app.js     */
+/* gesetzt). Andere Mandanten bleiben unberührt.                   */
+/* --accent kommt aus primary_color (DB). Hier werden die          */
+/* hartcodierten roten Gradient-Endwerte + orangen Glows blau.     */
+/* ───────────────────────────────────────────────────────────── */
+html.tenant-company-4{
+  --accent-2:#0f2d6b;            /* dunkles Blau als Gradient-Endwert */
+}
+
+/* Aktiver Sidebar-Menüpunkt */
+html.tenant-company-4 .nav-btn.active{
+  background:linear-gradient(135deg,var(--accent),var(--accent-2))!important;
+  box-shadow:0 14px 30px rgba(26,68,148,.34)!important;
+}
+/* Primär-Buttons */
+html.tenant-company-4 .btn-primary{
+  background:linear-gradient(135deg,var(--accent),var(--accent-2))!important;
+  box-shadow:0 16px 32px rgba(26,68,148,.27)!important;
+}
+html.tenant-company-4 .btn-primary:hover{
+  background:linear-gradient(135deg,#2a5cbf,var(--accent-2))!important;
+  box-shadow:0 22px 42px rgba(26,68,148,.34)!important;
+}
+/* Credits-Balken */
+html.tenant-company-4 .credits-bar{
+  background:linear-gradient(90deg,var(--accent),var(--accent-2))!important;
+}
+/* User-Avatar (Topbar) */
+html.tenant-company-4 .user-avatar{
+  background:linear-gradient(135deg,var(--accent),var(--accent-2))!important;
+  box-shadow:0 9px 19px rgba(26,68,148,.25)!important;
+}
+/* Sidebar-Top-Glow (oranger Schein) */
+html.tenant-company-4 .sidebar:after{
+  background:radial-gradient(circle at 50% 0,rgba(26,68,148,.16),transparent 70%)!important;
+}
+/* Hintergrund-Radial im Body */
+html.tenant-company-4 body{
+  background:radial-gradient(circle at 20% 0%,rgba(26,68,148,.11),transparent 430px),linear-gradient(180deg,#f7f6f4,#efefee)!important;
+}
+/* Diverse Hover-/Border-Akzente, die rgba(255,92,0,..) nutzen */
+html.tenant-company-4 .stat-card:after{
+  background:rgba(26,68,148,.095)!important;
+}
+html.tenant-company-4 .stat-card:hover{
+  border-color:rgba(26,68,148,.24)!important;
+}
+/* Primär-Progress (Pipeline) */
+html.tenant-company-4 .premium-progress i{
+  background:linear-gradient(90deg,var(--accent),#3f74d4)!important;
+}
+/* Scan-Button-Spinner / Fokus-Ringe bleiben über --accent automatisch blau */

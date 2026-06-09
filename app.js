@@ -816,6 +816,12 @@ function applyCompanyBranding() {
     document.documentElement.style.setProperty("--accent", companyData.primary_color);
   }
 
+  // Sekundärfarbe (Gradient-Endwert) – falls gesetzt, sonst behält der
+  // CSS-Fallback den jeweiligen Tenant-Standard (z.B. Orange).
+  if (companyData.secondary_color) {
+    document.documentElement.style.setProperty("--accent-2", companyData.secondary_color);
+  }
+
   // Logo
   if (companyData.logo_url) {
     document.getElementById("sidebarLogo").src = companyData.logo_url;
