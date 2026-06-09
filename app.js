@@ -86,6 +86,73 @@ function getLeadContactPerson(lead) {
   return ownerName || lead.contact_person || lead.managing_director || "–";
 }
 
+function getLeadDisplayStatus(lead) {
+  if (!lead) return "new";
+
+  const outreachStatus = lead.outreach_status || "";
+  const status = lead.status || "";
+  const outreachPriority = [
+    "replied",
+    "bounced",
+    "unsubscribed",
+    "email_clicked",
+    "email_opened",
+    "email_sent",
+    "sent",
+    "active"
+  ];
+
+  if (outreachPriority.includes(outreachStatus)) return outreachStatus;
+  if (status === "outreach_active" && outreachStatus) return outreachStatus;
+  return status || outreachStatus || "new";
+}
+
+function getLeadPipelineStatus(lead) {
+  const status = getLeadDisplayStatus(lead);
+  if (isOutreachVisibleStatus(status)) return "sent";
+  return status;
+}
+
+function isOutreachVisibleStatus(value) {
+  return [
+    "sent",
+    "active",
+    "outreach_active",
+    "email_sent",
+    "email_opened",
+    "email_clicked",
+    "replied",
+    "bounced",
+    "unsubscribed"
+  ].includes(value);
+}
+
+function getLeadVideoUrl(lead) {
+  if (!lead) return null;
+  return lead.pitchlane_video_url || lead.video_url || null;
+}
+
+function isVideoProcessing(lead) {
+  if (!lead) return false;
+
+  return (
+    lead.video_status === "pending" ||
+    lead.video_status === "video_requested" ||
+    lead.pitchlane_status === "pending" ||
+    ["QUEUED_FOR_RECORDING", "RENDERING", "PROCESSING"].includes(lead.pitchlane_rendering_status)
+  );
+}
+
+function getOutreachSyncLabel(lead) {
+  const status = getLeadDisplayStatus(lead);
+  const label = formatStatusLabel(status);
+
+  if (lead?.pitchlane_hot_lead) return "Ja – Video vollständig angesehen";
+  if (lead?.pitchlane_engagement_status) return `Ja – ${formatStatusLabel(lead.pitchlane_engagement_status)}`;
+  if (isOutreachVisibleStatus(status)) return `Ja – ${label}`;
+  return "Nein";
+}
+
 function isEditingCallApprovalForm() {
   if (!isViralityFilmsCompany() || !selectedLeadId) return false;
 
@@ -1055,7 +1122,7 @@ function renderLeadTable() {
         <td>${l.instagram_found ? `${l.instagram_followers || 0} Follower` : '<span style="color:var(--muted)">–</span>'}</td>
         <td><span class="ads-badge ${l.ads_found ? "has-ads" : "no-ads"}">${l.ads_found ? "Aktiv" : "Keine Ads"}</span></td>
         <td>${scoreCell(score, scoreColor)}</td>
-        <td>${statusBadge(l.status || l.outreach_status)}</td>
+        <td>${statusBadge(getLeadDisplayStatus(l))}</td>
         <td>${priorityBadge(l.priority)}</td>
         <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); openDrawer(${l.id})">Öffnen</button></td>
       </tr>
@@ -1078,7 +1145,8 @@ function filterLeads() {
       (l.managing_director || "").toLowerCase().includes(search);
 
     const matchPriority = !priorityVal || l.priority === priorityVal;
-    const matchStatus = !statusVal || l.status === statusVal || l.outreach_status === statusVal;
+    const displayStatus = getLeadDisplayStatus(l);
+    const matchStatus = !statusVal || displayStatus === statusVal || l.status === statusVal || l.outreach_status === statusVal;
 
     let matchFilter = true;
     if (activeQuickFilter === "a-only") matchFilter = l.priority === "A";
@@ -1099,7 +1167,7 @@ function renderPipeline() {
   };
 
   board.innerHTML = columns.map(col => {
-    const colLeads = leads.filter(l => (l.status || l.outreach_status || "new") === col);
+    const colLeads = leads.filter(l => getLeadPipelineStatus(l) === col);
     return `
       <div class="pipeline-col">
         <div class="pipeline-col-header">
@@ -1125,7 +1193,7 @@ function renderReports() {
   const aLeads = leads.filter(l => l.priority === "A").length;
   const noAds = leads.filter(l => !l.ads_found).length;
   const videos = leads.filter(l => l.video_status === "completed" || l.video_status === "ready" || l.video_url).length;
-  const sent = leads.filter(l => l.outreach_status === "sent" || l.outreach_status === "active" || l.status === "outreach_active").length;
+  const sent = leads.filter(l => isOutreachVisibleStatus(getLeadDisplayStatus(l))).length;
   const avgScore = Math.round(leads.reduce((s, l) => s + (l.opportunity_score || 0), 0) / total);
 
   document.getElementById("reportSummary").innerHTML = `
@@ -1141,6 +1209,90 @@ function renderReports() {
 
 function reportRow(label, value) {
   return `<div class="report-row"><span>${label}</span><strong>${value}</strong></div>`;
+}
+
+function renderEngagementSummary(lead) {
+  const tags = [];
+  const viewCount = Number(lead.pitchlane_video_view_count || 0);
+  const startCount = Number(lead.pitchlane_video_start_count || 0);
+  const finishCount = Number(lead.pitchlane_video_finish_count || 0);
+  const status = getLeadDisplayStatus(lead);
+
+  if (lead.outreach_sent_at || isOutreachVisibleStatus(status)) {
+    tags.push(`Mail: ${formatStatusLabel(status)}`);
+  }
+  if (viewCount > 0) tags.push(`Video geöffnet: ${viewCount}x`);
+  if (startCount > 0) tags.push(`Video gestartet: ${startCount}x`);
+  if (finishCount > 0) tags.push(`Video vollständig: ${finishCount}x`);
+  if (lead.pitchlane_hot_lead) tags.push("Hot Lead");
+
+  if (!tags.length) return "";
+
+  return `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+      ${tags.map(tag => `<span class="tag service">${esc(tag)}</span>`).join("")}
+    </div>
+  `;
+}
+
+function addTimelineEvent(events, title, description, timestamp) {
+  if (!timestamp) return;
+  events.push({ title, description, created_at: timestamp });
+}
+
+function buildLeadTimelineEvents(lead) {
+  const events = Array.isArray(lead.timeline) ? [...lead.timeline] : [];
+  const status = getLeadDisplayStatus(lead);
+  const statusTime = lead.updated_at || lead.outreach_sent_at || lead.created_at;
+
+  addTimelineEvent(
+    events,
+    "Outreach gestartet",
+    "Lead wurde an Instantly übergeben.",
+    lead.outreach_sent_at
+  );
+
+  if (status === "email_sent" && !lead.outreach_sent_at) {
+    addTimelineEvent(events, "Mail gesendet", "Instantly hat die E-Mail gesendet.", statusTime);
+  }
+  if (status === "email_opened") {
+    addTimelineEvent(events, "Mail geöffnet", "Der Kontakt hat die E-Mail geöffnet.", statusTime);
+  }
+  if (status === "email_clicked") {
+    addTimelineEvent(events, "Mail-Link geklickt", "Der Kontakt hat einen Link in der E-Mail geklickt.", statusTime);
+  }
+  if (status === "replied") {
+    addTimelineEvent(events, "Antwort erhalten", "Der Kontakt hat auf die E-Mail geantwortet.", lead.outreach_completed_at || statusTime);
+  }
+  if (status === "bounced") {
+    addTimelineEvent(events, "E-Mail Bounce", "Instantly hat einen Bounce für diese E-Mail gemeldet.", statusTime);
+  }
+  if (status === "unsubscribed") {
+    addTimelineEvent(events, "Abmeldung", "Der Kontakt hat sich abgemeldet oder Opt-out ausgelöst.", statusTime);
+  }
+
+  addTimelineEvent(
+    events,
+    "Video geöffnet",
+    `Pitchlane-Video wurde geöffnet${lead.pitchlane_video_view_count ? ` (${lead.pitchlane_video_view_count}x)` : ""}.`,
+    lead.pitchlane_first_opened_at || lead.pitchlane_last_opened_at
+  );
+  addTimelineEvent(
+    events,
+    "Video gestartet",
+    `Pitchlane-Video wurde gestartet${lead.pitchlane_video_start_count ? ` (${lead.pitchlane_video_start_count}x)` : ""}.`,
+    lead.pitchlane_first_started_at || lead.pitchlane_last_started_at
+  );
+  addTimelineEvent(
+    events,
+    "Video vollständig angesehen",
+    `Pitchlane-Video wurde vollständig angesehen${lead.pitchlane_video_finish_count ? ` (${lead.pitchlane_video_finish_count}x)` : ""}.`,
+    lead.pitchlane_first_finished_at || lead.pitchlane_last_finished_at
+  );
+
+  return events
+    .filter(event => event && (event.created_at || event.timestamp))
+    .sort((a, b) => new Date(a.created_at || a.timestamp) - new Date(b.created_at || b.timestamp));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1215,6 +1367,15 @@ function formatStatusLabel(value) {
     outreach_active: "Outreach",
     sent: "Outreach",
     active: "Outreach",
+    email_sent: "Mail gesendet",
+    email_opened: "Mail geöffnet",
+    email_clicked: "Mail geklickt",
+    replied: "Antwort erhalten",
+    bounced: "Bounce",
+    unsubscribed: "Abgemeldet",
+    video_opened: "Video geöffnet",
+    video_started: "Video gestartet",
+    video_finished: "Video vollständig angesehen",
     outreach_completed: "Abgeschlossen",
     no_interest: "Kein Interesse",
     disqualified: "Nicht qualifiziert"
@@ -1357,7 +1518,7 @@ function renderDrawer(leadId) {
   if (!lead) return;
 
   const priority = lead.priority || "medium";
-  const status = lead.status || lead.outreach_status || "new";
+  const status = getLeadDisplayStatus(lead);
 
   // Header – keine verschachtelten Badges, damit das Styling sauber greift
   setText("drawerTitle", lead.lead_name || "–");
@@ -1439,7 +1600,7 @@ function renderDrawer(leadId) {
   setText("dCity", lead.city || "–");
   setText("dIndustry", lead.industry || "–");
   setHTML("dWebsite", lead.website ? `<a href="${esc(lead.website)}" target="_blank" rel="noopener noreferrer">${esc(lead.website)}</a>` : "–");
-  setText("dCrmSync", ["sent", "active", "outreach_active"].includes(lead.outreach_status || lead.status) ? "Ja – In Outreach" : "Nein");
+  setText("dCrmSync", getOutreachSyncLabel(lead));
 
   const weaknesses = toCleanArray(lead.weakness_tags);
   const weaknessesEl = document.getElementById("dWeaknessTags");
@@ -1482,18 +1643,9 @@ function renderDrawer(leadId) {
   setText("dAuditPotential", total >= 70 ? "Hoch" : total >= 45 ? "Mittel" : "Niedrig");
   setText("dPriorityVal", lead.priority || "C");
 
-  // Video – Brand4Social zeigt fertige Pitchlane-URL auch bei status "ready" / "outreach_active".
-  const displayVideoUrl = isBrand4SocialCompany()
-    ? (lead.pitchlane_video_url || lead.video_url || null)
-    : (lead.video_status === "completed" ? lead.video_url : null);
-
-  const videoIsProcessing = isBrand4SocialCompany()
-    ? (
-        lead.video_status === "pending" ||
-        lead.pitchlane_status === "pending" ||
-        ["QUEUED_FOR_RECORDING", "RENDERING", "PROCESSING"].includes(lead.pitchlane_rendering_status)
-      )
-    : lead.video_status === "pending";
+  const displayVideoUrl = getLeadVideoUrl(lead);
+  const videoIsProcessing = isVideoProcessing(lead);
+  const engagementHtml = renderEngagementSummary(lead);
 
   if (displayVideoUrl) {
     document.getElementById("videoContent").innerHTML = `
@@ -1505,6 +1657,7 @@ function renderDrawer(leadId) {
           allowfullscreen
         ></iframe>
       </div>
+      ${engagementHtml}
     `;
   } else {
     document.getElementById("videoContent").innerHTML = `
@@ -1513,6 +1666,7 @@ function renderDrawer(leadId) {
         <p class="video-placeholder-title">${videoIsProcessing ? "Video wird gerendert…" : "Video noch nicht verfügbar"}</p>
         <p class="video-placeholder-sub">${videoIsProcessing ? "Bitte warte einige Minuten – die Vorschau erscheint nach Fertigstellung automatisch." : "Für diesen Lead ist aktuell keine abrufbare Video-URL gespeichert."}</p>
       </div>
+      ${engagementHtml}
     `;
   }
 
@@ -1534,7 +1688,7 @@ function renderDrawer(leadId) {
 
 function renderTimeline(lead) {
   const list = document.getElementById("timelineList");
-  const events = lead.timeline || [];
+  const events = buildLeadTimelineEvents(lead);
 
   if (!events.length) {
     list.innerHTML = '<div class="empty-state">Noch keine Aktivitäten.</div>';
@@ -1821,6 +1975,15 @@ function statusBadge(s) {
     outreach_active: ["Outreach", "badge-sent"],
     sent: ["Outreach", "badge-sent"],
     active: ["Outreach", "badge-sent"],
+    email_sent: ["Mail gesendet", "badge-sent"],
+    email_opened: ["Mail geöffnet", "badge-sent"],
+    email_clicked: ["Mail geklickt", "badge-sent"],
+    replied: ["Antwort erhalten", "badge-qualified"],
+    bounced: ["Bounce", "badge-B"],
+    unsubscribed: ["Abgemeldet", "badge-B"],
+    video_opened: ["Video geöffnet", "badge-video"],
+    video_started: ["Video gestartet", "badge-video"],
+    video_finished: ["Video angesehen", "badge-qualified"],
     outreach_completed: ["Abgeschlossen", "badge-qualified"],
     no_interest: ["Kein Interesse", "badge-B"],
     disqualified: ["Nicht qualifiziert", "badge-B"]

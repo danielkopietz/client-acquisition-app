@@ -1,0 +1,55 @@
+/* Company 3 monitoring additions: append at the end of style.css */
+
+.badge-status-email_sent,
+.badge-status-email_opened,
+.badge-status-email_clicked,
+.badge-status-sent,
+.badge-status-active,
+.badge-status-outreach_active {
+  background: var(--purple-bg) !important;
+  color: var(--purple) !important;
+}
+
+.badge-status-replied,
+.badge-status-video_finished {
+  background: var(--green-bg) !important;
+  color: var(--green) !important;
+}
+
+.badge-status-bounced,
+.badge-status-unsubscribed {
+  background: var(--red-bg) !important;
+  color: var(--red) !important;
+}
+
+.badge-status-video_opened,
+.badge-status-video_started,
+.badge-status-video_ready {
+  background: var(--amber-bg) !important;
+  color: var(--amber) !important;
+}
+
+.video-embed {
+  position: relative !important;
+  width: 100% !important;
+  aspect-ratio: 16 / 9 !important;
+  min-height: 260px !important;
+  overflow: hidden !important;
+  border-radius: 18px !important;
+  background: #111 !important;
+  border: 1px solid rgba(35, 35, 35, .08) !important;
+}
+
+.video-embed iframe {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  border: 0 !important;
+}
+
+@media (max-width: 760px) {
+  .video-embed {
+    min-height: 190px !important;
+  }
+}
