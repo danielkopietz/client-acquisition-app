@@ -47,7 +47,7 @@ function getSelectedAnalysisPolicy() {
       key: "viralityfilms",
       maxLeads: 50,
       requiresCallApproval: true,
-      allowedStatuses: ["new", "no_email", "contact_confirmed", "ready_for_analysis", "called", "approved"]
+      allowedStatuses: ["new", "no_email", "contact_confirmed", "ready_for_analysis", "called", "approved", "ready"]
     };
   }
 
@@ -58,6 +58,46 @@ function getSelectedAnalysisPolicy() {
     requiresCallApproval: false,
     allowedStatuses: []
   };
+}
+
+function getLeadEmail(lead) {
+  if (!lead) return "";
+
+  // Company 3 bearbeitet Kontaktdaten manuell im Dashboard.
+  // Deshalb hat die manuelle E-Mail Vorrang vor automatisch gefundenen E-Mail-Feldern.
+  if (isViralityFilmsCompany()) {
+    return lead.email || lead.final_email || lead.findymail_email || "";
+  }
+
+  return lead.final_email || lead.findymail_email || lead.email || "";
+}
+
+function getLeadContactPerson(lead) {
+  if (!lead) return "–";
+
+  const ownerName = lead.inhaber_vorname
+    ? `${lead.inhaber_vorname} ${lead.inhaber_nachname || ""}`.trim()
+    : "";
+
+  if (isViralityFilmsCompany()) {
+    return lead.contact_person || ownerName || lead.managing_director || "–";
+  }
+
+  return ownerName || lead.contact_person || lead.managing_director || "–";
+}
+
+function isEditingCallApprovalForm() {
+  if (!isViralityFilmsCompany() || !selectedLeadId) return false;
+
+  const activeId = document.activeElement?.id;
+  return [
+    "callCompanyName",
+    "callContactPerson",
+    "callEmail",
+    "callPhone",
+    "callApproved",
+    "callNotes"
+  ].includes(activeId);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -75,6 +115,7 @@ let scanPollTimer = null;
 let activeQuickFilter = "all";
 let selectedAnalysisLeadIds = [];
 let isStartingSelectedAnalysis = false;
+let isSavingCallApproval = false;
 
 // ─────────────────────────────────────────────────────────────
 // AUTH0 INIT
@@ -245,8 +286,8 @@ async function loadLeads(page = 1) {
     });
     console.log("Leads geladen:", leads.length);
     renderAll();
-    // Drawer neu rendern wenn offen – aber nur wenn kein aktiver Speichervorgang läuft
-    if (selectedLeadId && !document.getElementById("saveCallApprovalBtn")?.disabled) {
+    // Drawer nur neu rendern, wenn gerade kein VF-Kontaktformular bearbeitet/gespeichert wird.
+    if (selectedLeadId && !isSavingCallApproval && !isEditingCallApprovalForm()) {
       renderDrawer(selectedLeadId);
     }
   } catch (err) {
@@ -526,6 +567,8 @@ async function saveCallApproval(leadId) {
   const originalText = button?.textContent || "Kontakt & Freigabe speichern";
 
   try {
+    isSavingCallApproval = true;
+
     if (button) {
       button.disabled = true;
       button.textContent = "Wird gespeichert…";
@@ -540,10 +583,18 @@ async function saveCallApproval(leadId) {
     // Sonst überschreibt renderDrawer die Felder mit alten Werten
     const index = leads.findIndex(l => Number(l.id) === Number(leadId));
     if (index >= 0) {
+      const manualEmailUpdate = isViralityFilmsCompany()
+        ? {
+            final_email: email || updatedLead?.final_email || "",
+            final_email_type: email ? "manual" : (updatedLead?.final_email_type || null)
+          }
+        : {};
+
       leads[index] = {
         ...leads[index],
         ...updates,
         ...(updatedLead || {}),
+        ...manualEmailUpdate,
         // call_approved explizit sichern – PATCH gibt es im RETURNING zurück
         call_approved: updatedLead?.call_approved ?? callApproved
       };
@@ -570,6 +621,8 @@ async function saveCallApproval(leadId) {
   } catch (err) {
     showToast(`Speichern fehlgeschlagen: ${err.message}`, "error");
   } finally {
+    isSavingCallApproval = false;
+
     if (button) {
       button.disabled = false;
       button.textContent = originalText;
@@ -968,11 +1021,8 @@ function renderLeadTable() {
   }
 
   tbody.innerHTML = filtered.map(l => {
-    const email = l.final_email || l.findymail_email || l.email || "";
-    const isVF = isViralityFilmsCompany();
-    const contact = isVF
-      ? (l.contact_person || (l.inhaber_vorname ? `${l.inhaber_vorname} ${l.inhaber_nachname || ""}`.trim() : null) || l.managing_director || "–")
-      : ((l.inhaber_vorname ? `${l.inhaber_vorname} ${l.inhaber_nachname || ""}`.trim() : null) || l.contact_person || l.managing_director || "–");
+    const email = getLeadEmail(l);
+    const contact = getLeadContactPerson(l);
     const score = l.opportunity_score || 0;
     const scoreColor = score >= 70 ? "green" : score >= 45 ? "" : "amber";
     const selectable = selectionEnabled && isLeadSelectable(l);
@@ -1306,11 +1356,6 @@ function renderDrawer(leadId) {
   const lead = leads.find(l => Number(l.id) === Number(leadId));
   if (!lead) return;
 
-  const contact = lead.inhaber_vorname
-    ? `${lead.inhaber_vorname} ${lead.inhaber_nachname || ""}`.trim()
-    : (lead.contact_person || lead.managing_director || "–");
-
-  const email = lead.final_email || lead.findymail_email || lead.email || "–";
   const priority = lead.priority || "medium";
   const status = lead.status || lead.outreach_status || "new";
 
@@ -1344,7 +1389,7 @@ function renderDrawer(leadId) {
 
   if (callCompanyName) callCompanyName.value = lead.lead_name || lead.company_name || "";
   if (callContactPerson) callContactPerson.value = lead.contact_person || lead.managing_director || "";
-  if (callEmail) callEmail.value = lead.email || lead.final_email || lead.findymail_email || "";
+  if (callEmail) callEmail.value = getLeadEmail(lead);
   if (callPhone) callPhone.value = lead.phone || "";
   if (callApproved) callApproved.checked = lead.call_approved === true;
   if (callNotes) callNotes.value = lead.call_notes || "";
@@ -1376,11 +1421,8 @@ function renderDrawer(leadId) {
   document.querySelectorAll(".vf-hide").forEach(el => el.classList.toggle("hidden", isVFCompany));
 
   // Readonly Spans immer befüllen (B4S sichtbar, VF versteckt via CSS)
-  const aspVal = isVFCompany
-    ? (lead.contact_person || (lead.inhaber_vorname ? `${lead.inhaber_vorname} ${lead.inhaber_nachname || ""}`.trim() : null) || lead.managing_director || "–")
-    : ((lead.inhaber_vorname ? `${lead.inhaber_vorname} ${lead.inhaber_nachname || ""}`.trim() : null) || lead.contact_person || lead.managing_director || "–");
-  setText("dAnsp", aspVal);
-  setText("dEmail", lead.email || lead.final_email || lead.findymail_email || "–");
+  setText("dAnsp", getLeadContactPerson(lead));
+  setText("dEmail", getLeadEmail(lead) || "–");
   setText("dPhone", lead.phone || "–");
 
   if (originalManagingDirector) {
