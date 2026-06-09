@@ -1822,9 +1822,14 @@ function renderDrawer(leadId) {
   const callNotes = document.getElementById("callNotes");
   const callApprovalState = document.getElementById("callApprovalState");
   const originalManagingDirector = document.getElementById("originalManagingDirector");
+  const company4ContactPerson = isCompany4RecruitingCompany() ? getCompany4ContactPerson(lead) : null;
 
   if (callCompanyName) callCompanyName.value = lead.lead_name || lead.company_name || "";
-  if (callContactPerson) callContactPerson.value = lead.contact_person || lead.managing_director || "";
+  if (callContactPerson) {
+    callContactPerson.value = isCompany4RecruitingCompany()
+      ? (company4ContactPerson === "–" ? "" : company4ContactPerson)
+      : (lead.contact_person || lead.managing_director || "");
+  }
   if (callEmail) callEmail.value = getLeadEmail(lead);
   if (callPhone) callPhone.value = lead.phone || "";
   if (callApproved) callApproved.checked = lead.call_approved === true;
@@ -1857,12 +1862,15 @@ function renderDrawer(leadId) {
   document.querySelectorAll(".vf-hide").forEach(el => el.classList.toggle("hidden", isVFCompany));
 
   // Readonly Spans immer befüllen (B4S sichtbar, VF versteckt via CSS)
-  setText("dAnsp", getLeadContactPerson(lead));
+  setText("dAnsp", isCompany4RecruitingCompany() ? company4ContactPerson : getLeadContactPerson(lead));
   setText("dEmail", getLeadEmail(lead) || "–");
   setText("dPhone", lead.phone || "–");
 
   if (originalManagingDirector) {
-    const manuallyAdjusted = lead.managing_director && lead.contact_person && lead.managing_director !== lead.contact_person;
+    const manuallyAdjusted = !isCompany4RecruitingCompany()
+      && lead.managing_director
+      && lead.contact_person
+      && lead.managing_director !== lead.contact_person;
     if (manuallyAdjusted) {
       originalManagingDirector.textContent = `Im Impressum gefunden: ${lead.managing_director}`;
       originalManagingDirector.classList.remove("hidden");
