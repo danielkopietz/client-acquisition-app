@@ -863,6 +863,18 @@ function applyTenantCopy() {
   setButtonText('[data-filter="a-only"]', "Neu");
   setButtonText('[data-filter="no-ads"]', "Mit Job-Signal");
   setButtonText("#startSelectedAnalysisBtn", "Kampagne starten");
+
+  const leadTableHeaders = document.querySelectorAll(".leads-table thead th");
+  if (leadTableHeaders.length >= 10) {
+    leadTableHeaders[1].textContent = "Unternehmen";
+    leadTableHeaders[2].textContent = "Stelle";
+    leadTableHeaders[3].textContent = "Kontakt";
+    leadTableHeaders[4].textContent = "E-Mail";
+    leadTableHeaders[5].textContent = "Website";
+    leadTableHeaders[6].textContent = "Kampagne";
+    leadTableHeaders[7].textContent = "Status";
+    leadTableHeaders[8].textContent = "Ort";
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1269,14 +1281,52 @@ function formatCampaignChannelLabel(value) {
   return map[value] || value || "Noch nicht gestartet";
 }
 
+function extractFirstUrlFromText(value) {
+  const match = String(value || "").match(/https?:\/\/[^\s|]+/i);
+  return match ? match[0] : null;
+}
+
+function getCompany4JobUrl(lead) {
+  return lead?.job_url || extractFirstUrlFromText(`${lead?.jobs_notes || ""}\n${lead?.notes || ""}`);
+}
+
+function getCompany4Website(lead) {
+  return lead?.website || lead?.website_url || (lead?.domain ? `https://${lead.domain}` : "");
+}
+
+function cleanCompany4ContactName(value) {
+  const raw = String(value || "").replace(/\s+/g, " ").trim();
+  if (!raw || raw === "–") return "–";
+
+  const afterColon = raw.includes(":") ? raw.split(":").pop().trim() : raw;
+  const cleaned = afterColon
+    .replace(/\b(geschäftsführer|geschaeftsfuehrer|geschäftsführender|geschaeftsfuehrender|gesellschafter|inhaber|vertreten durch|ender)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const nameMatch = cleaned.match(/([A-ZÄÖÜ][A-Za-zÄÖÜäöüß-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß-]+){1,3})$/);
+  return nameMatch ? nameMatch[1].trim() : cleaned || raw;
+}
+
+function getCompany4ContactPerson(lead) {
+  return cleanCompany4ContactName(
+    lead?.contact_person ||
+    lead?.managing_director ||
+    [lead?.inhaber_vorname, lead?.inhaber_nachname].filter(Boolean).join(" ")
+  );
+}
+
 function renderCompany4LeadRow(l, selectionEnabled) {
   const email = getLeadEmail(l);
-  const contact = getLeadContactPerson(l);
+  const contact = getCompany4ContactPerson(l);
   const selectable = selectionEnabled && isLeadSelectable(l);
   const checked = selectedAnalysisLeadIds.includes(Number(l.id));
-  const jobTitles = toCleanArray(l.jobs_titles).slice(0, 2);
+  const jobTitles = toCleanArray(l.jobs_titles);
+  const shownJob = jobTitles[0] || "Stelle aus Jobportal";
   const jobsCount = getJobsCount(l);
-  const website = l.website || l.website_url || "";
+  const website = getCompany4Website(l);
+  const jobUrl = getCompany4JobUrl(l);
+  const location = [l.city, l.region].filter(Boolean).join(" · ") || l.region || "–";
   const selectionCell = selectionEnabled ? `
       <td class="select-cell" onclick="event.stopPropagation()">
         <input
@@ -1294,21 +1344,21 @@ function renderCompany4LeadRow(l, selectionEnabled) {
       ${selectionCell}
       <td>
         <div class="td-name">${esc(l.lead_name)}</div>
-        <div class="td-city">${esc(l.region || l.city || "")}</div>
+        <div class="td-city">${esc(l.country_code || l.land || "DE")}</div>
       </td>
       <td>
         <div class="td-contact">${jobsCount ? `${jobsCount} aktive Stelle${jobsCount === 1 ? "" : "n"}` : "Job-Signal"}</div>
-        <div class="td-email">${jobTitles.length ? esc(jobTitles.join(", ")) : esc(l.notes || "Aus Stellenportal importiert")}</div>
+        <div class="td-email">${jobUrl ? `<a href="${esc(jobUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">${esc(shownJob)}</a>` : esc(shownJob)}</div>
       </td>
-      <td>${website ? `<a href="${esc(website)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">Website</a>` : '<span style="color:var(--muted)">–</span>'}</td>
       <td>
         <div class="td-contact">${esc(contact)}</div>
         <div class="td-email">${l.phone ? esc(l.phone) : ""}</div>
       </td>
       <td>${email ? `<a href="mailto:${esc(email)}" onclick="event.stopPropagation()">${esc(email)}</a>` : "–"}</td>
+      <td>${website ? `<a href="${esc(website)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">Website</a>` : '<span style="color:var(--muted)">–</span>'}</td>
       <td><span class="badge badge-new">${esc(formatCampaignChannelLabel(l.channel))}</span></td>
       <td>${statusBadge(getLeadDisplayStatus(l))}</td>
-      <td>${priorityBadge(l.priority)}</td>
+      <td><span class="badge badge-C">${esc(location)}</span></td>
       <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); openDrawer(${l.id})">Öffnen</button></td>
     </tr>
   `;
@@ -1701,6 +1751,43 @@ function renderB4SRecruitingPanels(lead) {
   insertB4SPanelBeforeAnchor(analysisCard, "dMarketingAnalysis");
 }
 
+function renderCompany4JobAnalysisPanel(lead) {
+  document.getElementById("c4JobAnalysisPanel")?.remove();
+  if (!isCompany4RecruitingCompany()) return;
+
+  const tab = document.getElementById("tab-analyse");
+  if (!tab) return;
+
+  const jobTitles = toCleanArray(lead.jobs_titles);
+  const jobUrl = getCompany4JobUrl(lead);
+  const website = getCompany4Website(lead);
+  const contact = getCompany4ContactPerson(lead);
+  const email = getLeadEmail(lead);
+  const location = [lead.street, lead.postal_code, lead.city].filter(Boolean).join(", ") || lead.region || "–";
+  const notes = lead.jobs_notes || lead.notes || "";
+
+  const panel = document.createElement("div");
+  panel.id = "c4JobAnalysisPanel";
+  panel.className = "detail-section";
+  panel.innerHTML = `
+    <h4>Stelle aus Jobportal</h4>
+    <div class="detail-grid">
+      <div class="detail-row"><span class="detail-label">Stellentitel</span><span>${esc(jobTitles[0] || "–")}</span></div>
+      <div class="detail-row"><span class="detail-label">Job-Link</span><span>${jobUrl ? `<a href="${esc(jobUrl)}" target="_blank" rel="noopener noreferrer">Anzeige öffnen</a>` : "–"}</span></div>
+      <div class="detail-row"><span class="detail-label">Website</span><span>${website ? `<a href="${esc(website)}" target="_blank" rel="noopener noreferrer">${esc(website.replace(/^https?:\/\//, ""))}</a>` : "–"}</span></div>
+      <div class="detail-row"><span class="detail-label">Kontakt</span><span>${esc(contact)}</span></div>
+      <div class="detail-row"><span class="detail-label">E-Mail</span><span>${email ? `<a href="mailto:${esc(email)}">${esc(email)}</a>` : "–"}</span></div>
+      <div class="detail-row"><span class="detail-label">Telefon</span><span>${esc(lead.phone || "–")}</span></div>
+      <div class="detail-row"><span class="detail-label">Standort</span><span>${esc(location)}</span></div>
+      <div class="detail-row"><span class="detail-label">Job-Signal</span><span>${getJobsCount(lead)} aktive Stelle${getJobsCount(lead) === 1 ? "" : "n"}</span></div>
+      <div class="detail-row"><span class="detail-label">Kampagne</span><span>${esc(formatCampaignChannelLabel(lead.channel))}</span></div>
+    </div>
+    ${notes ? `<div class="analysis-box" style="margin-top:12px;">${esc(notes)}</div>` : ""}
+  `;
+
+  tab.prepend(panel);
+}
+
 function renderDrawer(leadId) {
   const lead = leads.find(l => Number(l.id) === Number(leadId));
   if (!lead) return;
@@ -1811,6 +1898,7 @@ function renderDrawer(leadId) {
 
   // Nur Brand4Social / Company 2: Recruiting-Signal aus Jobs-Daten darstellen.
   renderB4SRecruitingPanels(lead);
+  renderCompany4JobAnalysisPanel(lead);
 
   // Analyse Tab
   const ws = Number(lead.website_score ?? lead.pagespeed_score ?? lead.mobile_score ?? 0);
