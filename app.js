@@ -35,6 +35,10 @@ function isCompany4RecruitingCompany() {
   return getCurrentCompanyId() === COMPANY_IDS.COMPANY4_RECRUITING;
 }
 
+function usesSharedSalesCrm() {
+  return isViralityFilmsCompany() || isCompany4RecruitingCompany();
+}
+
 function getSelectedAnalysisPolicy() {
   if (isBrand4SocialCompany()) {
     return {
@@ -109,7 +113,7 @@ function getLeadDisplayStatus(lead) {
 
   const crmStatus = String(lead.crm_status || "").toLowerCase();
   if (
-    isViralityFilmsCompany() &&
+    usesSharedSalesCrm() &&
     ["follow_up", "meeting", "won", "lost", "existing_customer", "no_interest"].includes(crmStatus)
   ) return crmStatus;
 
@@ -132,11 +136,12 @@ function getLeadDisplayStatus(lead) {
 }
 
 function getLeadPipelineStatus(lead) {
-  if (isViralityFilmsCompany()) {
+  if (usesSharedSalesCrm()) {
     const status = String(lead?.status || "").toLowerCase();
     const crmStatus = String(lead?.crm_status || "").toLowerCase();
     const outreachStatus = String(lead?.outreach_status || "").toLowerCase();
 
+    if (crmStatus === "analyzed") return "analyzed";
     if (crmStatus === "no_interest") return "no_interest";
     if (["lost", "disqualified"].includes(crmStatus || status)) return "lost";
     if (["existing_customer", "customer"].includes(crmStatus || status)) return "existing_customer";
@@ -800,11 +805,11 @@ function toDatetimeLocalValue(value) {
 function configureCrmStatusOptions(lead) {
   const select = document.getElementById("crmStatus");
   if (!select) return;
-  const options = isViralityFilmsCompany() ? VF_CRM_STATUS_OPTIONS : DEFAULT_CRM_STATUS_OPTIONS;
+  const options = usesSharedSalesCrm() ? VF_CRM_STATUS_OPTIONS : DEFAULT_CRM_STATUS_OPTIONS;
   select.innerHTML = options
     .map(([value, label]) => `<option value="${value}">${esc(label)}</option>`)
     .join("");
-  select.value = isViralityFilmsCompany()
+  select.value = usesSharedSalesCrm()
     ? normalizeViralityCrmStatus(lead?.crm_status || lead?.status)
     : (lead?.status || "new");
 }
@@ -821,7 +826,7 @@ async function saveCrmData(leadId) {
       ? new Date(document.getElementById("crmFollowUp").value).toISOString()
       : ""
   };
-  if (isViralityFilmsCompany()) {
+  if (usesSharedSalesCrm()) {
     updates.crm_status = document.getElementById("crmStatus").value;
   } else {
     updates.status = document.getElementById("crmStatus").value;
@@ -1496,13 +1501,13 @@ let crmReminderTimer = null;
 let activeCrmReminder = null;
 
 function startCrmReminderPolling() {
-  if (!isViralityFilmsCompany() || crmReminderTimer) return;
+  if (!usesSharedSalesCrm() || crmReminderTimer) return;
   checkDueCrmReminders();
   crmReminderTimer = window.setInterval(checkDueCrmReminders, 60000);
 }
 
 async function checkDueCrmReminders() {
-  if (!isViralityFilmsCompany() || activeCrmReminder) return;
+  if (!usesSharedSalesCrm() || activeCrmReminder) return;
   try {
     const reminders = await apiRequest("/leads/reminders/due");
     if (!Array.isArray(reminders) || !reminders.length) return;
@@ -1542,14 +1547,14 @@ async function handleCrmReminder(action) {
 let draggedPipelineLeadId = null;
 
 function startPipelineDrag(event, leadId) {
-  if (!isViralityFilmsCompany()) return;
+  if (!usesSharedSalesCrm()) return;
   draggedPipelineLeadId = Number(leadId);
   event.dataTransfer.effectAllowed = "move";
   event.dataTransfer.setData("text/plain", String(leadId));
 }
 
 function allowPipelineDrop(event) {
-  if (!isViralityFilmsCompany()) return;
+  if (!usesSharedSalesCrm()) return;
   event.preventDefault();
   event.currentTarget.classList.add("drag-over");
 }
@@ -1559,7 +1564,7 @@ function leavePipelineDrop(event) {
 }
 
 async function dropLeadToPipeline(event, status) {
-  if (!isViralityFilmsCompany()) return;
+  if (!usesSharedSalesCrm()) return;
   event.preventDefault();
   event.currentTarget.classList.remove("drag-over");
 
@@ -1590,11 +1595,11 @@ async function dropLeadToPipeline(event, status) {
 
 function renderPipeline() {
   const board = document.getElementById("pipelineBoard");
-  const isVirality = isViralityFilmsCompany();
-  const columns = isVirality
+  const usesSalesCrm = usesSharedSalesCrm();
+  const columns = usesSalesCrm
     ? ["analyzed", "email_sent", "email_opened", "bounced", "video_opened", "meeting", "won", "existing_customer", "no_interest", "lost"]
     : ["new", "qualified", "cold_call", "video_ready", "sent", "meeting", "won"];
-  const colLabels = isVirality
+  const colLabels = usesSalesCrm
     ? {
         analyzed: "Analysiert",
         email_sent: "Mail gesendet",
@@ -1619,7 +1624,7 @@ function renderPipeline() {
 
   board.innerHTML = columns.map(col => {
     const colLeads = leads.filter(l => getLeadPipelineStatus(l) === col);
-    const dropAttributes = isVirality
+    const dropAttributes = usesSalesCrm
       ? `data-pipeline-status="${col}" ondragover="allowPipelineDrop(event)" ondragleave="leavePipelineDrop(event)" ondrop="dropLeadToPipeline(event, '${col}')"`
       : "";
     return `
@@ -1630,7 +1635,7 @@ function renderPipeline() {
         </div>
         ${colLeads.map(l => `
           <div class="pipeline-card"
-               ${isVirality ? `draggable="true" ondragstart="startPipelineDrag(event, ${l.id})"` : ""}
+               ${usesSalesCrm ? `draggable="true" ondragstart="startPipelineDrag(event, ${l.id})"` : ""}
                onclick="openDrawer(${l.id})">
             <div class="pipeline-card-name">${esc(l.lead_name)}</div>
             <div class="pipeline-card-meta">${l.opportunity_score || 0}% · ${esc(l.city || "")}</div>
