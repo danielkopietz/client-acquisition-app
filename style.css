@@ -1255,3 +1255,37 @@ html.tenant-company-4 .premium-progress i{
   background:linear-gradient(90deg,var(--accent),#3f74d4)!important;
 }
 /* Scan-Button-Spinner / Fokus-Ringe bleiben über --accent automatisch blau */
+
+
+/* Company 3 pipeline drag and drop */
+.pipeline-col.drag-over{
+  border-color:var(--accent);
+  background:#fff5ef;
+  box-shadow:inset 0 0 0 2px rgba(255,92,0,.12);
+}
+.pipeline-card[draggable="true"]{cursor:grab}
+.pipeline-card[draggable="true"]:active{cursor:grabbing}
+.crm-reminder-modal{
+  position:fixed;
+  inset:0;
+  z-index:120;
+  display:grid;
+  place-items:center;
+  padding:20px;
+  background:rgba(10,10,10,.46);
+  backdrop-filter:blur(5px);
+}
+.crm-reminder-modal.hidden{display:none}
+.crm-reminder-card{
+  width:min(520px,100%);
+  padding:26px;
+  border:1px solid var(--border);
+  border-radius:24px;
+  background:linear-gradient(135deg,#fff,#fff5ef);
+  box-shadow:0 30px 100px rgba(0,0,0,.28);
+}
+.crm-reminder-card h2{margin:5px 0 18px;font-size:28px}
+.crm-reminder-card strong{display:block;font-size:18px}
+.crm-reminder-card p{margin-top:9px}
+.crm-reminder-time{font-weight:900;color:var(--accent)}
+.crm-reminder-actions{display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap;margin-top:22px}

@@ -540,15 +540,6 @@
             <label>Status</label>
             <select id="crmStatus">
               <option value="new">Neu</option>
-              <option value="qualified">Qualifiziert</option>
-              <option value="cold_call">Cold Call bereit</option>
-              <option value="in_progress">In Bearbeitung</option>
-              <option value="video_ready">Video bereit</option>
-              <option value="sent">An Outreach übergeben</option>
-              <option value="follow_up">Follow-up offen</option>
-              <option value="meeting">Termin gebucht</option>
-              <option value="won">Gewonnen</option>
-              <option value="lost">Verloren</option>
             </select>
           </div>
           <div class="form-group">
@@ -560,8 +551,8 @@
             <input type="text" id="crmNextStep" placeholder="z.B. Anruf am Montag" />
           </div>
           <div class="form-group">
-            <label>Follow-up Datum</label>
-            <input type="date" id="crmFollowUp" />
+            <label>Follow-up Datum & Uhrzeit</label>
+            <input type="datetime-local" id="crmFollowUp" />
           </div>
           <div class="form-group">
             <label>Notizen</label>
@@ -578,6 +569,21 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <div id="crmReminderModal" class="crm-reminder-modal hidden" role="dialog" aria-modal="true" aria-labelledby="crmReminderTitle">
+    <div class="crm-reminder-card">
+      <p class="eyebrow">CRM ERINNERUNG</p>
+      <h2 id="crmReminderTitle">Follow-up ist fällig</h2>
+      <strong id="crmReminderCompany"></strong>
+      <p id="crmReminderStep"></p>
+      <p class="crm-reminder-time" id="crmReminderTime"></p>
+      <div class="crm-reminder-actions">
+        <button class="btn btn-ghost" type="button" onclick="handleCrmReminder('snooze')">In 15 Min.</button>
+        <button class="btn btn-ghost" type="button" onclick="handleCrmReminder('done')">Erledigt</button>
+        <button class="btn btn-primary" type="button" onclick="handleCrmReminder('open')">Lead öffnen</button>
+      </div>
     </div>
   </div>
 

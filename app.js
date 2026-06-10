@@ -126,6 +126,37 @@ function getLeadDisplayStatus(lead) {
 }
 
 function getLeadPipelineStatus(lead) {
+  if (isViralityFilmsCompany()) {
+    const status = String(lead?.status || "").toLowerCase();
+    const crmStatus = String(lead?.crm_status || "").toLowerCase();
+    const outreachStatus = String(lead?.outreach_status || "").toLowerCase();
+
+    if (["lost", "no_interest", "disqualified"].includes(crmStatus || status)) return "lost";
+    if (["won", "existing_customer", "customer"].includes(crmStatus || status)) return "won";
+    if ((crmStatus || status) === "meeting") return "meeting";
+    if (status === "bounced" || outreachStatus === "bounced") return "bounced";
+
+    const videoWasOpened =
+      status === "video_opened" ||
+      lead?.pitchlane_video_opened === true ||
+      Number(lead?.pitchlane_video_view_count || 0) > 0 ||
+      Boolean(lead?.pitchlane_first_opened_at);
+    if (videoWasOpened) return "video_opened";
+
+    if (
+      ["email_opened", "email_clicked", "replied"].includes(status) ||
+      ["email_opened", "email_clicked", "replied"].includes(outreachStatus)
+    ) return "email_opened";
+
+    if (
+      ["email_sent", "sent", "active", "outreach_active"].includes(status) ||
+      ["email_sent", "sent", "active"].includes(outreachStatus) ||
+      Boolean(lead?.outreach_sent_at)
+    ) return "email_sent";
+
+    return "analyzed";
+  }
+
   const status = getLeadDisplayStatus(lead);
   if (isOutreachVisibleStatus(status)) return "sent";
   return status;
@@ -271,6 +302,7 @@ async function initApp() {
     bindEvents();
     showLoader(false);
     showApp();
+    startCrmReminderPolling();
 
     // 3. Nochmal laden nach App-Start um sicher alles zu haben
     setTimeout(async () => {
@@ -598,12 +630,12 @@ async function disqualifyLead(leadId) {
     const updatedLead = await apiRequest(`/leads/${leadId}`, {
       method: "PATCH",
       body: JSON.stringify({
-        status: "no_interest",
+        crm_status: "lost",
         call_notes: (document.getElementById("callNotes")?.value || "") + " [Kein Interesse – manuell markiert]"
       })
     });
     const idx = leads.findIndex(l => Number(l.id) === Number(leadId));
-    if (idx >= 0) leads[idx] = { ...leads[idx], status: "no_interest", ...updatedLead };
+    if (idx >= 0) leads[idx] = { ...leads[idx], crm_status: "lost", ...updatedLead };
     addTimelineEntry(leadId, "Kein Interesse", "Lead wurde als 'Kein Interesse' markiert.");
     renderDrawer(leadId);
     renderLeadTable();
@@ -718,30 +750,86 @@ async function saveCallApproval(leadId) {
 // ─────────────────────────────────────────────────────────────
 // CRM SPEICHERN
 // ─────────────────────────────────────────────────────────────
+const VF_CRM_STATUS_OPTIONS = [
+  ["analyzed", "Analysiert"],
+  ["follow_up", "Follow-up offen"],
+  ["meeting", "Termin gebucht"],
+  ["won", "Gewonnen"],
+  ["lost", "Verloren"],
+  ["existing_customer", "Bereits Kunde"]
+];
+
+const DEFAULT_CRM_STATUS_OPTIONS = [
+  ["new", "Neu"],
+  ["qualified", "Qualifiziert"],
+  ["cold_call", "Cold Call bereit"],
+  ["in_progress", "In Bearbeitung"],
+  ["video_ready", "Video bereit"],
+  ["sent", "An Outreach übergeben"],
+  ["follow_up", "Follow-up offen"],
+  ["meeting", "Termin gebucht"],
+  ["won", "Gewonnen"],
+  ["lost", "Verloren"]
+];
+
+function normalizeViralityCrmStatus(status) {
+  const value = String(status || "").toLowerCase();
+  if (["follow_up", "meeting", "won", "lost", "existing_customer"].includes(value)) return value;
+  if (["no_interest", "disqualified"].includes(value)) return "lost";
+  if (["customer"].includes(value)) return "existing_customer";
+  return "analyzed";
+}
+
+function toDatetimeLocalValue(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function configureCrmStatusOptions(lead) {
+  const select = document.getElementById("crmStatus");
+  if (!select) return;
+  const options = isViralityFilmsCompany() ? VF_CRM_STATUS_OPTIONS : DEFAULT_CRM_STATUS_OPTIONS;
+  select.innerHTML = options
+    .map(([value, label]) => `<option value="${value}">${esc(label)}</option>`)
+    .join("");
+  select.value = isViralityFilmsCompany()
+    ? normalizeViralityCrmStatus(lead?.crm_status || lead?.status)
+    : (lead?.status || "new");
+}
+
 async function saveCrmData(leadId) {
   const lead = leads.find(l => l.id === leadId);
   if (!lead) return;
 
   const updates = {
-    status: document.getElementById("crmStatus").value,
     notes: document.getElementById("crmNotes").value,
     owner: document.getElementById("crmOwner").value,
     next_step: document.getElementById("crmNextStep").value,
     follow_up: document.getElementById("crmFollowUp").value
+      ? new Date(document.getElementById("crmFollowUp").value).toISOString()
+      : ""
   };
+  if (isViralityFilmsCompany()) {
+    updates.crm_status = document.getElementById("crmStatus").value;
+  } else {
+    updates.status = document.getElementById("crmStatus").value;
+  }
 
   try {
-    await apiRequest(`/leads/${leadId}`, {
+    const savedLead = await apiRequest(`/leads/${leadId}`, {
       method: "PATCH",
       body: JSON.stringify(updates)
     });
 
-    // Lokal aktualisieren
-    const idx = leads.findIndex(l => l.id === leadId);
-    if (idx >= 0) leads[idx] = { ...leads[idx], ...updates };
+    // Nur den vom Server bestätigten Stand lokal übernehmen.
+    const idx = leads.findIndex(l => Number(l.id) === Number(leadId));
+    if (idx >= 0) leads[idx] = { ...leads[idx], ...updates, ...savedLead };
 
     // Timeline-Eintrag
-    addTimelineEntry(leadId, "CRM gespeichert", `Status: ${updates.status}`);
+    addTimelineEntry(leadId, "CRM gespeichert", `Status: ${updates.crm_status || updates.status}`);
     showToast("Gespeichert!");
     renderLeadTable();
   } catch (err) {
@@ -1395,24 +1483,140 @@ function filterLeads() {
   });
 }
 
+let crmReminderTimer = null;
+let activeCrmReminder = null;
+
+function startCrmReminderPolling() {
+  if (!isViralityFilmsCompany() || crmReminderTimer) return;
+  checkDueCrmReminders();
+  crmReminderTimer = window.setInterval(checkDueCrmReminders, 60000);
+}
+
+async function checkDueCrmReminders() {
+  if (!isViralityFilmsCompany() || activeCrmReminder) return;
+  try {
+    const reminders = await apiRequest("/leads/reminders/due");
+    if (!Array.isArray(reminders) || !reminders.length) return;
+    showCrmReminder(reminders[0]);
+  } catch (err) {
+    console.warn("CRM-Erinnerungen konnten nicht geladen werden:", err);
+  }
+}
+
+function showCrmReminder(reminder) {
+  activeCrmReminder = reminder;
+  document.getElementById("crmReminderCompany").textContent = reminder.lead_name || "Unbekannter Lead";
+  document.getElementById("crmReminderStep").textContent =
+    reminder.next_step || "Follow-up durchführen";
+  document.getElementById("crmReminderTime").textContent =
+    new Date(reminder.follow_up).toLocaleString("de-DE");
+  document.getElementById("crmReminderModal").classList.remove("hidden");
+}
+
+async function handleCrmReminder(action) {
+  if (!activeCrmReminder) return;
+  const reminder = activeCrmReminder;
+  try {
+    await apiRequest(`/leads/${reminder.id}/reminder-ack`, {
+      method: "POST",
+      body: JSON.stringify({ action })
+    });
+    document.getElementById("crmReminderModal").classList.add("hidden");
+    activeCrmReminder = null;
+    if (action === "open") openDrawer(reminder.id);
+    window.setTimeout(checkDueCrmReminders, 500);
+  } catch (err) {
+    showToast(`Erinnerung konnte nicht aktualisiert werden: ${err.message}`, "error");
+  }
+}
+
+let draggedPipelineLeadId = null;
+
+function startPipelineDrag(event, leadId) {
+  if (!isViralityFilmsCompany()) return;
+  draggedPipelineLeadId = Number(leadId);
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/plain", String(leadId));
+}
+
+function allowPipelineDrop(event) {
+  if (!isViralityFilmsCompany()) return;
+  event.preventDefault();
+  event.currentTarget.classList.add("drag-over");
+}
+
+function leavePipelineDrop(event) {
+  event.currentTarget.classList.remove("drag-over");
+}
+
+async function dropLeadToPipeline(event, status) {
+  if (!isViralityFilmsCompany()) return;
+  event.preventDefault();
+  event.currentTarget.classList.remove("drag-over");
+
+  const leadId = Number(event.dataTransfer.getData("text/plain") || draggedPipelineLeadId);
+  const lead = leads.find(item => Number(item.id) === leadId);
+  if (!lead || getLeadPipelineStatus(lead) === status) return;
+
+  try {
+    const savedLead = await apiRequest(`/leads/${leadId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status })
+    });
+    Object.assign(lead, { status }, savedLead);
+    renderPipeline();
+    renderLeadTable();
+    addTimelineEntry(leadId, "Pipeline aktualisiert", `Status: ${formatStatusLabel(status)}`);
+    showToast(`Verschoben nach „${formatStatusLabel(status)}“.`, "success");
+  } catch (err) {
+    showToast(`Pipeline-Status konnte nicht gespeichert werden: ${err.message}`, "error");
+  } finally {
+    draggedPipelineLeadId = null;
+  }
+}
+
 function renderPipeline() {
   const board = document.getElementById("pipelineBoard");
-  const columns = ["new", "qualified", "cold_call", "video_ready", "sent", "meeting", "won"];
-  const colLabels = {
-    new: "Neu", qualified: "Qualifiziert", cold_call: "Cold Call",
-    video_ready: "Video bereit", sent: "Outreach", meeting: "Termin", won: "Gewonnen"
-  };
+  const isVirality = isViralityFilmsCompany();
+  const columns = isVirality
+    ? ["analyzed", "email_sent", "email_opened", "bounced", "video_opened", "meeting", "won", "lost"]
+    : ["new", "qualified", "cold_call", "video_ready", "sent", "meeting", "won"];
+  const colLabels = isVirality
+    ? {
+        analyzed: "Analysiert",
+        email_sent: "Mail gesendet",
+        email_opened: "Mail geöffnet",
+        bounced: "Bounce",
+        video_opened: "Video geöffnet",
+        meeting: "Termin",
+        won: "Gewonnen",
+        lost: "Verloren"
+      }
+    : {
+        new: "Neu",
+        qualified: "Qualifiziert",
+        cold_call: "Cold Call",
+        video_ready: "Video bereit",
+        sent: "Outreach",
+        meeting: "Termin",
+        won: "Gewonnen"
+      };
 
   board.innerHTML = columns.map(col => {
     const colLeads = leads.filter(l => getLeadPipelineStatus(l) === col);
+    const dropAttributes = isVirality
+      ? `data-pipeline-status="${col}" ondragover="allowPipelineDrop(event)" ondragleave="leavePipelineDrop(event)" ondrop="dropLeadToPipeline(event, '${col}')"`
+      : "";
     return `
-      <div class="pipeline-col">
+      <div class="pipeline-col" ${dropAttributes}>
         <div class="pipeline-col-header">
           <span>${colLabels[col]}</span>
           <span class="pipeline-col-count">${colLeads.length}</span>
         </div>
         ${colLeads.map(l => `
-          <div class="pipeline-card" onclick="openDrawer(${l.id})">
+          <div class="pipeline-card"
+               ${isVirality ? `draggable="true" ondragstart="startPipelineDrag(event, ${l.id})"` : ""}
+               onclick="openDrawer(${l.id})">
             <div class="pipeline-card-name">${esc(l.lead_name)}</div>
             <div class="pipeline-card-meta">${l.opportunity_score || 0}% · ${esc(l.city || "")}</div>
           </div>
@@ -1616,7 +1820,12 @@ function formatStatusLabel(value) {
     video_finished: "Video vollständig angesehen",
     outreach_completed: "Abgeschlossen",
     no_interest: "Kein Interesse",
-    disqualified: "Nicht qualifiziert"
+    disqualified: "Nicht qualifiziert",
+    follow_up: "Follow-up offen",
+    meeting: "Termin",
+    won: "Gewonnen",
+    lost: "Verloren",
+    existing_customer: "Bereits Kunde"
   };
   return map[value] || value || "Neu";
 }
@@ -1957,11 +2166,11 @@ function renderDrawer(leadId) {
   setText("dMarketingAnalysis", lead.marketing_analysis || "Noch keine Analyse vorhanden.");
 
   // CRM Tab
-  document.getElementById("crmStatus").value = lead.status || "new";
+  configureCrmStatusOptions(lead);
   document.getElementById("crmNotes").value = lead.notes || "";
-  document.getElementById("crmOwner").value = lead.owner || "";
-  document.getElementById("crmNextStep").value = lead.next_step || "";
-  document.getElementById("crmFollowUp").value = lead.follow_up || "";
+  document.getElementById("crmOwner").value = lead.owner || lead.crm_owner || "";
+  document.getElementById("crmNextStep").value = lead.next_step || lead.crm_next_step || "";
+  document.getElementById("crmFollowUp").value = toDatetimeLocalValue(lead.follow_up || lead.crm_follow_up);
 
   // Timeline
   renderTimeline(lead);
@@ -2271,7 +2480,12 @@ function statusBadge(s) {
     video_finished: ["Video angesehen", "badge-qualified"],
     outreach_completed: ["Abgeschlossen", "badge-qualified"],
     no_interest: ["Kein Interesse", "badge-B"],
-    disqualified: ["Nicht qualifiziert", "badge-B"]
+    disqualified: ["Nicht qualifiziert", "badge-B"],
+    follow_up: ["Follow-up offen", "badge-B"],
+    meeting: ["Termin", "badge-qualified"],
+    won: ["Gewonnen", "badge-qualified"],
+    lost: ["Verloren", "badge-B"],
+    existing_customer: ["Bereits Kunde", "badge-qualified"]
   };
   const [label, cls] = map[s] || [s || "Neu", "badge-new"];
   return `<span class="badge ${cls}">${label}</span>`;
