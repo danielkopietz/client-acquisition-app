@@ -107,6 +107,12 @@ function getLeadContactPerson(lead) {
 function getLeadDisplayStatus(lead) {
   if (!lead) return "new";
 
+  const crmStatus = String(lead.crm_status || "").toLowerCase();
+  if (
+    isViralityFilmsCompany() &&
+    ["follow_up", "meeting", "won", "lost", "existing_customer", "no_interest"].includes(crmStatus)
+  ) return crmStatus;
+
   const outreachStatus = lead.outreach_status || "";
   const status = lead.status || "";
   const outreachPriority = [
@@ -131,8 +137,10 @@ function getLeadPipelineStatus(lead) {
     const crmStatus = String(lead?.crm_status || "").toLowerCase();
     const outreachStatus = String(lead?.outreach_status || "").toLowerCase();
 
-    if (["lost", "no_interest", "disqualified"].includes(crmStatus || status)) return "lost";
-    if (["won", "existing_customer", "customer"].includes(crmStatus || status)) return "won";
+    if (crmStatus === "no_interest") return "no_interest";
+    if (["lost", "disqualified"].includes(crmStatus || status)) return "lost";
+    if (["existing_customer", "customer"].includes(crmStatus || status)) return "existing_customer";
+    if ((crmStatus || status) === "won") return "won";
     if ((crmStatus || status) === "meeting") return "meeting";
     if (status === "bounced" || outreachStatus === "bounced") return "bounced";
 
@@ -630,12 +638,12 @@ async function disqualifyLead(leadId) {
     const updatedLead = await apiRequest(`/leads/${leadId}`, {
       method: "PATCH",
       body: JSON.stringify({
-        crm_status: "lost",
+        crm_status: "no_interest",
         call_notes: (document.getElementById("callNotes")?.value || "") + " [Kein Interesse – manuell markiert]"
       })
     });
     const idx = leads.findIndex(l => Number(l.id) === Number(leadId));
-    if (idx >= 0) leads[idx] = { ...leads[idx], crm_status: "lost", ...updatedLead };
+    if (idx >= 0) leads[idx] = { ...leads[idx], crm_status: "no_interest", ...updatedLead };
     addTimelineEntry(leadId, "Kein Interesse", "Lead wurde als 'Kein Interesse' markiert.");
     renderDrawer(leadId);
     renderLeadTable();
@@ -756,7 +764,8 @@ const VF_CRM_STATUS_OPTIONS = [
   ["meeting", "Termin gebucht"],
   ["won", "Gewonnen"],
   ["lost", "Verloren"],
-  ["existing_customer", "Bereits Kunde"]
+  ["existing_customer", "Bereits Kunde"],
+  ["no_interest", "Kein Interesse"]
 ];
 
 const DEFAULT_CRM_STATUS_OPTIONS = [
@@ -774,8 +783,8 @@ const DEFAULT_CRM_STATUS_OPTIONS = [
 
 function normalizeViralityCrmStatus(status) {
   const value = String(status || "").toLowerCase();
-  if (["follow_up", "meeting", "won", "lost", "existing_customer"].includes(value)) return value;
-  if (["no_interest", "disqualified"].includes(value)) return "lost";
+  if (["follow_up", "meeting", "won", "lost", "existing_customer", "no_interest"].includes(value)) return value;
+  if (["disqualified"].includes(value)) return "lost";
   if (["customer"].includes(value)) return "existing_customer";
   return "analyzed";
 }
@@ -1559,11 +1568,15 @@ async function dropLeadToPipeline(event, status) {
   if (!lead || getLeadPipelineStatus(lead) === status) return;
 
   try {
+    const manualStatuses = ["analyzed", "meeting", "won", "lost", "existing_customer", "no_interest"];
+    const update = manualStatuses.includes(status)
+      ? { crm_status: status }
+      : { status };
     const savedLead = await apiRequest(`/leads/${leadId}`, {
       method: "PATCH",
-      body: JSON.stringify({ status })
+      body: JSON.stringify(update)
     });
-    Object.assign(lead, { status }, savedLead);
+    Object.assign(lead, update, savedLead);
     renderPipeline();
     renderLeadTable();
     addTimelineEntry(leadId, "Pipeline aktualisiert", `Status: ${formatStatusLabel(status)}`);
@@ -1579,7 +1592,7 @@ function renderPipeline() {
   const board = document.getElementById("pipelineBoard");
   const isVirality = isViralityFilmsCompany();
   const columns = isVirality
-    ? ["analyzed", "email_sent", "email_opened", "bounced", "video_opened", "meeting", "won", "lost"]
+    ? ["analyzed", "email_sent", "email_opened", "bounced", "video_opened", "meeting", "won", "existing_customer", "no_interest", "lost"]
     : ["new", "qualified", "cold_call", "video_ready", "sent", "meeting", "won"];
   const colLabels = isVirality
     ? {
@@ -1590,6 +1603,8 @@ function renderPipeline() {
         video_opened: "Video geöffnet",
         meeting: "Termin",
         won: "Gewonnen",
+        existing_customer: "Bereits Kunde",
+        no_interest: "Kein Interesse",
         lost: "Verloren"
       }
     : {
