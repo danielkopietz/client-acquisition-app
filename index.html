@@ -172,18 +172,34 @@
               <p class="card-sub">Suche, analysiere und bewerte potenzielle Neukunden automatisch.</p>
             </div>
             <div class="scan-form">
+              <!-- Zeile 1: Branche + Bundesland + Lead Limit – immer sichtbar -->
               <div class="form-row">
                 <div class="form-group">
                   <label>Branche</label>
-                  <input id="industryInput" type="text" value="Social Media Agentur" placeholder="z.B. Zahnarzt, Dachdecker" />
+                  <input id="industryInput" type="text" value="Maschinenbau" placeholder="z.B. Maschinenbau, Zahnarzt" />
                 </div>
                 <div class="form-group">
-                  <label>Region</label>
-                  <input id="regionInput" type="text" value="Augsburg, Deutschland" placeholder="z.B. München, Deutschland" />
+                  <label>Bundesland / Region</label>
+                  <input id="regionInput" type="text" value="Bayern, Deutschland" placeholder="z.B. Bayern, Deutschland" />
                 </div>
                 <div class="form-group form-group-sm">
                   <label>Lead Limit</label>
-                  <input id="leadLimitInput" type="number" value="5" min="1" max="100" />
+                  <input id="leadLimitInput" type="number" value="20" min="1" max="100" />
+                </div>
+              </div>
+              <!-- Zeile 2: VF-spezifische Felder – nur für Company 3 sichtbar (per JS eingeblendet) -->
+              <div class="form-row hidden" id="vfScanExtended">
+                <div class="form-group">
+                  <label>Stadt (optional)</label>
+                  <input id="vfCityInput" type="text" placeholder="z.B. Ulm, München" />
+                </div>
+                <div class="form-group form-group-sm">
+                  <label>Min. Mitarbeiter</label>
+                  <input id="vfMinEmpInput" type="number" value="10" min="1" max="10000" />
+                </div>
+                <div class="form-group form-group-sm">
+                  <label>Max. Mitarbeiter</label>
+                  <input id="vfMaxEmpInput" type="number" value="500" min="1" max="10000" />
                 </div>
               </div>
               <div class="scan-actions">

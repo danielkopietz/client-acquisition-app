@@ -466,16 +466,30 @@ async function startScan() {
   statusEl.classList.remove("hidden");
   statusText.textContent = "Scan wird erstellt…";
 
+  // Basis-Payload
+  const scanBody = {
+    company_id: companyData.id,
+    industry,
+    region,
+    lead_limit: leadLimit
+  };
+
+  // VF-spezifische Felder nur für Company 3
+  if (isViralityFilmsCompany()) {
+    const city = (document.getElementById("vfCityInput")?.value || "").trim();
+    const minEmp = parseInt(document.getElementById("vfMinEmpInput")?.value) || 10;
+    const maxEmp = parseInt(document.getElementById("vfMaxEmpInput")?.value) || 500;
+    if (city) scanBody.city = city;
+    scanBody.min_employees = minEmp;
+    scanBody.max_employees = maxEmp;
+    scanBody.source = "apollo";
+  }
+
   try {
     // 1. Scan in DB anlegen via API
     const scanData = await apiRequest("/scans", {
       method: "POST",
-      body: JSON.stringify({
-        company_id: companyData.id,
-        industry,
-        region,
-        lead_limit: leadLimit
-      })
+      body: JSON.stringify(scanBody)
     });
 
     const scanId = scanData?.scan?.id || scanData?.id || scanData?.scan_id;
@@ -2275,6 +2289,21 @@ function setupUI() {
     setText("userAvatar", initial);
     setText("userEmail", currentUser.email || "");
   }
+
+  // VF-Scan-Formular: erweiterte Felder nur für Company 3 einblenden
+  if (isViralityFilmsCompany()) {
+    injectVFScanFields();
+  }
+}
+
+function injectVFScanFields() {
+  // Felder sind bereits im HTML – einfach einblenden
+  const extRow = document.getElementById("vfScanExtended");
+  if (extRow) extRow.classList.remove("hidden");
+
+  // Beschreibungstext anpassen
+  const scanSub = document.querySelector(".scan-card .card-sub");
+  if (scanSub) scanSub.textContent = "Branche, Region und optional Stadt eingeben – wir finden passende Unternehmen automatisch.";
 }
 
 function bindEvents() {
