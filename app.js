@@ -356,8 +356,16 @@ async function apiRequest(path, options = {}) {
     }
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || `API Fehler ${res.status}`);
+      const responseText = await res.text();
+      let err = {};
+      try {
+        err = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        err = { details: responseText };
+      }
+      const detail = err.error || err.message || err.details || `API Fehler ${res.status}`;
+      const stage = err.stage ? ` [${err.stage}]` : "";
+      throw new Error(`${detail}${stage}`);
     }
 
     return await res.json();
