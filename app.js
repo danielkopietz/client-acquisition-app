@@ -446,10 +446,15 @@ async function loadScans() {
 async function startScan() {
   const industry = document.getElementById("industryInput").value.trim();
   const region = document.getElementById("regionInput").value.trim();
-  const leadLimit = parseInt(document.getElementById("leadLimitInput").value) || 5;
+  const leadLimit = parseInt(document.getElementById("leadLimitInput").value, 10) || 25;
 
   if (!industry || !region) {
-    showToast("Bitte Branche und Region eingeben.", "error");
+    showToast(
+      isViralityFilmsCompany()
+        ? "Bitte Branche und Bundesland auswählen."
+        : "Bitte Branche und Region eingeben.",
+      "error"
+    );
     return;
   }
 
@@ -474,15 +479,21 @@ async function startScan() {
     lead_limit: leadLimit
   };
 
-  // VF-spezifische Felder nur für Company 3
+  // Company 3 nutzt exakt die Parameter des VF-WF01.
   if (isViralityFilmsCompany()) {
     const city = (document.getElementById("vfCityInput")?.value || "").trim();
-    const minEmp = parseInt(document.getElementById("vfMinEmpInput")?.value) || 10;
-    const maxEmp = parseInt(document.getElementById("vfMaxEmpInput")?.value) || 500;
+    const minEmp = parseInt(document.getElementById("vfMinEmpInput")?.value, 10) || 51;
+    const maxEmp = parseInt(document.getElementById("vfMaxEmpInput")?.value, 10) || 200;
+
+    if (minEmp > maxEmp) {
+      showToast("Mitarbeiter (von) darf nicht größer als Mitarbeiter (bis) sein.", "error");
+      return;
+    }
+
     if (city) scanBody.city = city;
     scanBody.min_employees = minEmp;
     scanBody.max_employees = maxEmp;
-    scanBody.source = "apollo";
+    scanBody.source = "apollo_outscraper";
   }
 
   try {
@@ -2297,13 +2308,104 @@ function setupUI() {
 }
 
 function injectVFScanFields() {
-  // Felder sind bereits im HTML – einfach einblenden
+  const industryOptions = [
+    "Maschinenbau",
+    "Automotive / Zulieferer",
+    "Metallverarbeitung",
+    "Elektrotechnik",
+    "Kunststofftechnik",
+    "Logistik / Transport",
+    "Bauunternehmen",
+    "Handwerk / Handwerksbetrieb",
+    "Lebensmittelproduktion",
+    "Pharmaindustrie",
+    "Medizintechnik",
+    "IT-Dienstleister",
+    "Unternehmensberatung",
+    "Immobilien",
+    "Einzelhandel"
+  ];
+  const regionOptions = [
+    "Baden-Württemberg",
+    "Bayern",
+    "Berlin",
+    "Brandenburg",
+    "Bremen",
+    "Hamburg",
+    "Hessen",
+    "Mecklenburg-Vorpommern",
+    "Niedersachsen",
+    "Nordrhein-Westfalen",
+    "Rheinland-Pfalz",
+    "Saarland",
+    "Sachsen",
+    "Sachsen-Anhalt",
+    "Schleswig-Holstein",
+    "Thüringen"
+  ];
+  const minEmployeeOptions = [
+    [1, "ab 1"],
+    [10, "ab 10"],
+    [25, "ab 25"],
+    [51, "51+"],
+    [101, "101+"],
+    [201, "201+"],
+    [501, "501+"]
+  ];
+  const maxEmployeeOptions = [
+    [50, "bis 50"],
+    [100, "bis 100"],
+    [200, "bis 200"],
+    [500, "bis 500"],
+    [1000, "bis 1.000"],
+    [5000, "bis 5.000"],
+    [100000, "ohne Obergrenze"]
+  ];
+
+  const replaceWithSelect = (id, options, selectedValue) => {
+    const current = document.getElementById(id);
+    if (!current || current.tagName === "SELECT") return;
+    const select = document.createElement("select");
+    select.id = id;
+    select.className = current.className;
+    select.innerHTML = options.map(option => {
+      const value = Array.isArray(option) ? option[0] : option;
+      const label = Array.isArray(option) ? option[1] : option;
+      return `<option value="${esc(value)}">${esc(label)}</option>`;
+    }).join("");
+    select.value = String(selectedValue);
+    current.replaceWith(select);
+  };
+
+  replaceWithSelect("industryInput", industryOptions, "Maschinenbau");
+  replaceWithSelect("regionInput", regionOptions, "Bayern");
+  replaceWithSelect("vfMinEmpInput", minEmployeeOptions, 51);
+  replaceWithSelect("vfMaxEmpInput", maxEmployeeOptions, 200);
+
   const extRow = document.getElementById("vfScanExtended");
   if (extRow) extRow.classList.remove("hidden");
 
-  // Beschreibungstext anpassen
+  const leadLimit = document.getElementById("leadLimitInput");
+  if (leadLimit) {
+    leadLimit.value = "25";
+    leadLimit.min = "1";
+    leadLimit.max = "250";
+  }
+
+  const industryLabel = document.querySelector("#industryInput")?.closest(".form-group")?.querySelector("label");
+  const regionLabel = document.querySelector("#regionInput")?.closest(".form-group")?.querySelector("label");
+  const leadLimitLabel = document.querySelector("#leadLimitInput")?.closest(".form-group")?.querySelector("label");
+  const minLabel = document.querySelector("#vfMinEmpInput")?.closest(".form-group")?.querySelector("label");
+  const maxLabel = document.querySelector("#vfMaxEmpInput")?.closest(".form-group")?.querySelector("label");
+
+  if (industryLabel) industryLabel.textContent = "Branche";
+  if (regionLabel) regionLabel.textContent = "Bundesland";
+  if (leadLimitLabel) leadLimitLabel.textContent = "Anzahl Leads";
+  if (minLabel) minLabel.textContent = "Mitarbeiter (von)";
+  if (maxLabel) maxLabel.textContent = "Mitarbeiter (bis)";
+
   const scanSub = document.querySelector(".scan-card .card-sub");
-  if (scanSub) scanSub.textContent = "Branche, Region und optional Stadt eingeben – wir finden passende Unternehmen automatisch.";
+  if (scanSub) scanSub.textContent = "Branche und Bundesland auswählen, optional eine Stadt eingeben und passende Unternehmen finden.";
 }
 
 function bindEvents() {
