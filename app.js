@@ -773,174 +773,6 @@ async function resendCompany3Email(leadId) {
 
 
 // ─────────────────────────────────────────────────────────────
-// COMPANY 4: KONTAKTAKTIONEN UND E-MAIL ERNEUT SENDEN
-// ─────────────────────────────────────────────────────────────
-function canResendCompany4Email(lead) {
-  if (!isCompany4RecruitingCompany() || !lead || !getLeadEmail(lead)) return false;
-
-  const resendableStatuses = new Set([
-    "sent",
-    "active",
-    "email_sent",
-    "email_opened",
-    "email_clicked",
-    "replied",
-    "outreach_active",
-    "outreach_completed"
-  ]);
-
-  return Boolean(
-    lead.instantly_lead_id ||
-    lead.outreach_sent_at ||
-    resendableStatuses.has(String(lead.outreach_status || "").toLowerCase()) ||
-    resendableStatuses.has(String(lead.status || "").toLowerCase())
-  );
-}
-
-function syncCompany4ContactActions(lead) {
-  let container = document.getElementById("company4ContactActions");
-
-  if (!isCompany4RecruitingCompany()) {
-    container?.remove();
-    return;
-  }
-
-  const overviewPanel = document.getElementById("tab-overview");
-  const detailGrid = overviewPanel?.querySelector(".detail-grid");
-  if (!overviewPanel || !detailGrid) return;
-
-  if (!container) {
-    container = document.createElement("div");
-    container.id = "company4ContactActions";
-    container.className = "detail-section";
-    container.style.cssText = "margin-top:16px;padding:14px;border:1px solid var(--border);border-radius:10px;";
-    container.innerHTML = `
-      <div style="font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Kontaktaktionen</div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <button id="company4NoInterestBtn" type="button" class="btn btn-ghost" style="padding:9px 14px;font-size:13px;color:var(--muted);border:1px solid var(--border);">✕ Kein Interesse</button>
-        <button id="company4ExistingCustomerBtn" type="button" class="btn btn-ghost" style="padding:9px 14px;font-size:13px;color:var(--muted);border:1px solid var(--border);">Bereits Kunde</button>
-        <button id="company4ResendInstantlyEmailBtn" type="button" class="btn btn-ghost" style="padding:9px 14px;font-size:13px;border:1px solid var(--border);" title="Sendet ausschließlich die vorhandene E-Mail erneut über Instantly">E-Mail erneut senden</button>
-      </div>
-      <div id="company4ContactActionState" class="hidden" style="margin-top:8px;padding:6px 10px;background:var(--bg-2);border-radius:6px;font-size:12px;color:var(--muted);font-weight:600;"></div>
-    `;
-    detailGrid.insertAdjacentElement("afterend", container);
-
-    container.querySelector("#company4NoInterestBtn")?.addEventListener("click", () => {
-      if (selectedLeadId) updateCompany4ContactStatus(selectedLeadId, "no_interest");
-    });
-    container.querySelector("#company4ExistingCustomerBtn")?.addEventListener("click", () => {
-      if (selectedLeadId) updateCompany4ContactStatus(selectedLeadId, "existing_customer");
-    });
-    container.querySelector("#company4ResendInstantlyEmailBtn")?.addEventListener("click", () => {
-      if (selectedLeadId) resendCompany4Email(selectedLeadId);
-    });
-  }
-
-  const crmStatus = String(lead?.crm_status || "").toLowerCase();
-  const noInterestButton = document.getElementById("company4NoInterestBtn");
-  const existingCustomerButton = document.getElementById("company4ExistingCustomerBtn");
-  const resendButton = document.getElementById("company4ResendInstantlyEmailBtn");
-  const state = document.getElementById("company4ContactActionState");
-
-  if (noInterestButton) noInterestButton.disabled = crmStatus === "no_interest";
-  if (existingCustomerButton) existingCustomerButton.disabled = crmStatus === "existing_customer";
-  if (resendButton) {
-    resendButton.classList.toggle("hidden", !canResendCompany4Email(lead));
-    resendButton.disabled = false;
-    resendButton.textContent = "E-Mail erneut senden";
-  }
-
-  if (state) {
-    const stateLabel = crmStatus === "no_interest"
-      ? "Als „Kein Interesse“ markiert"
-      : crmStatus === "existing_customer"
-        ? "Als „Bereits Kunde“ markiert"
-        : "";
-    state.textContent = stateLabel;
-    state.classList.toggle("hidden", !stateLabel);
-  }
-}
-
-async function updateCompany4ContactStatus(leadId, crmStatus) {
-  if (!isCompany4RecruitingCompany()) return;
-
-  const labels = {
-    no_interest: "Kein Interesse",
-    existing_customer: "Bereits Kunde"
-  };
-  const label = labels[crmStatus];
-  if (!label) return;
-  if (!confirm(`Lead als „${label}“ markieren?`)) return;
-
-  try {
-    const updatedLead = await apiRequest(`/leads/${leadId}`, {
-      method: "PATCH",
-      body: JSON.stringify({ crm_status: crmStatus })
-    });
-    const index = leads.findIndex(item => Number(item.id) === Number(leadId));
-    if (index >= 0) leads[index] = { ...leads[index], crm_status: crmStatus, ...updatedLead };
-    addTimelineEntry(Number(leadId), label, `Lead wurde als „${label}“ markiert.`);
-    renderDrawer(Number(leadId));
-    renderLeadTable();
-    renderPipeline();
-    showToast(`Lead als „${label}“ markiert.`, "success");
-  } catch (error) {
-    showToast(`Status konnte nicht gespeichert werden: ${error.message}`, "error");
-  }
-}
-
-async function resendCompany4Email(leadId) {
-  if (!isCompany4RecruitingCompany()) return;
-
-  const lead = leads.find(item => Number(item.id) === Number(leadId));
-  if (!lead || !canResendCompany4Email(lead)) {
-    showToast("Der Lead ist noch nicht für einen Wiederholungsversand bereit.", "error");
-    return;
-  }
-
-  const email = getLeadEmail(lead);
-  if (!confirm(`Die E-Mail an ${email} wirklich erneut über Instantly senden?`)) return;
-
-  const button = document.getElementById("company4ResendInstantlyEmailBtn");
-  if (button) {
-    button.disabled = true;
-    button.textContent = "Versand wird angefordert...";
-  }
-
-  try {
-    const result = await apiRequest("/instantly/resend", {
-      method: "POST",
-      body: JSON.stringify({ lead_id: Number(leadId) })
-    });
-
-    const requestedAt = result?.requested_at || new Date().toISOString();
-    lead.updated_at = requestedAt;
-    addTimelineEntry(
-      Number(leadId),
-      "E-Mail erneut angefordert",
-      `Wiederholungsversand an ${email} wurde bei Instantly angefordert.`
-    );
-
-    const actionOutput = document.getElementById("actionOutput");
-    const actionOutputText = document.getElementById("actionOutputText");
-    if (actionOutput && actionOutputText) {
-      actionOutputText.textContent = result?.message || "Erneuter Versand wurde angefordert.";
-      actionOutput.classList.remove("hidden");
-    }
-
-    showToast("Erneuter E-Mail-Versand wurde angefordert.", "success");
-  } catch (error) {
-    showToast(`Wiederholungsversand fehlgeschlagen: ${error.message}`, "error");
-  } finally {
-    if (button) {
-      button.disabled = false;
-      button.textContent = "E-Mail erneut senden";
-    }
-  }
-}
-
-
-// ─────────────────────────────────────────────────────────────
 // TELEFONISCHE KONTAKTFREIGABE SPEICHERN
 // ─────────────────────────────────────────────────────────────
 async function disqualifyLead(leadId) {
@@ -1037,12 +869,17 @@ async function saveCallApproval(leadId) {
       };
     }
 
+    const newVideoStarted = updatedLead?.wf02b_triggered === true;
     addTimelineEntry(
       leadId,
-      callApproved ? "E-Mail-Freigabe erteilt" : "Kontaktdaten aktualisiert",
-      callApproved
-        ? `Telefonische Freigabe für ${email} dokumentiert.`
-        : "Kontaktdaten gespeichert; noch keine Versandfreigabe."
+      newVideoStarted
+        ? "Neues Video angefordert"
+        : (callApproved ? "E-Mail-Freigabe erteilt" : "Kontaktdaten aktualisiert"),
+      newVideoStarted
+        ? `Empfänger auf ${contactPerson} <${email}> aktualisiert. WF02b für neues Video und Versand gestartet.`
+        : (callApproved
+            ? `Telefonische Freigabe für ${email} dokumentiert.`
+            : "Kontaktdaten gespeichert; noch keine Versandfreigabe.")
     );
 
     renderDrawer(leadId);
@@ -1052,7 +889,9 @@ async function saveCallApproval(leadId) {
     setTimeout(() => loadLeads().catch(() => {}), 800);
 
     showToast(
-      callApproved ? "Kontakt und Freigabe gespeichert." : "Kontaktdaten gespeichert.",
+      newVideoStarted
+        ? "Kontakt gespeichert. Neues Video und Versand wurden gestartet."
+        : (callApproved ? "Kontakt und Freigabe gespeichert." : "Kontaktdaten gespeichert."),
       "success"
     );
   } catch (err) {
@@ -1260,10 +1099,8 @@ function applyTenantCopy() {
   setClosestLabelText("statAvgScore", "Outreach aktiv");
   setClosestLabelText("statVideos", "Videos");
 
-  // Company 4 erhält seine Job-Signale automatisiert aus WF01 und startet
-  // deshalb auf der Startseite keine manuellen Scans.
-  const scanCard = document.querySelector(".scan-card");
-  if (scanCard) scanCard.classList.add("hidden");
+  const scanSub = document.querySelector(".scan-card .card-sub");
+  if (scanSub) scanSub.textContent = "Stellenportale liefern neue Unternehmen mit Personalbedarf direkt ins Dashboard.";
 
   const opportunitiesSub = document.querySelector("#opportunitiesView .card-sub");
   if (opportunitiesSub) opportunitiesSub.textContent = "Unternehmen aus Stellenportalen auswählen und in Video- oder E-Mail-Kampagnen starten.";
@@ -2395,7 +2232,6 @@ function renderDrawer(leadId) {
   const vfSection = document.getElementById("vfCallApprovalSection");
   if (vfSection) vfSection.classList.toggle("hidden", !isVFCompany);
   syncCompany3ResendButton(lead);
-  syncCompany4ContactActions(lead);
 
   // Editierbare Felder (VF) vs. readonly Spans (andere)
   document.querySelectorAll(".vf-show").forEach(el => el.classList.toggle("hidden", !isVFCompany));
