@@ -665,6 +665,112 @@ async function sendToOutreach(leadId) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// COMPANY 3: E-MAIL ERNEUT ÜBER INSTANTLY SENDEN
+// ─────────────────────────────────────────────────────────────
+function canResendCompany3Email(lead) {
+  if (!isViralityFilmsCompany() || !lead || lead.call_approved !== true) return false;
+  if (!getLeadEmail(lead)) return false;
+
+  const resendableStatuses = new Set([
+    "sent",
+    "active",
+    "email_sent",
+    "email_opened",
+    "email_clicked",
+    "replied",
+    "outreach_active",
+    "outreach_completed"
+  ]);
+
+  return Boolean(
+    lead.instantly_lead_id ||
+    lead.outreach_sent_at ||
+    resendableStatuses.has(String(lead.outreach_status || "").toLowerCase()) ||
+    resendableStatuses.has(String(lead.status || "").toLowerCase())
+  );
+}
+
+function syncCompany3ResendButton(lead) {
+  let button = document.getElementById("resendInstantlyEmailBtn");
+
+  if (!isViralityFilmsCompany()) {
+    button?.remove();
+    return;
+  }
+
+  const actionContainer = document.getElementById("saveCallApprovalBtn")?.parentElement;
+  if (!actionContainer) return;
+
+  if (!button) {
+    button = document.createElement("button");
+    button.id = "resendInstantlyEmailBtn";
+    button.type = "button";
+    button.className = "btn btn-ghost";
+    button.style.cssText = "padding:9px 14px;font-size:13px;border:1px solid var(--border);";
+    button.textContent = "E-Mail erneut senden";
+    button.title = "Sendet ausschließlich die vorhandene E-Mail erneut über Instantly";
+    button.addEventListener("click", () => {
+      if (selectedLeadId) resendCompany3Email(selectedLeadId);
+    });
+    actionContainer.appendChild(button);
+  }
+
+  button.classList.toggle("hidden", !canResendCompany3Email(lead));
+  button.disabled = false;
+  button.textContent = "E-Mail erneut senden";
+}
+
+async function resendCompany3Email(leadId) {
+  if (!isViralityFilmsCompany()) return;
+
+  const lead = leads.find(item => Number(item.id) === Number(leadId));
+  if (!lead || !canResendCompany3Email(lead)) {
+    showToast("Der Lead ist noch nicht für einen Wiederholungsversand bereit.", "error");
+    return;
+  }
+
+  const email = getLeadEmail(lead);
+  if (!confirm(`Die E-Mail an ${email} wirklich erneut über Instantly senden?`)) return;
+
+  const button = document.getElementById("resendInstantlyEmailBtn");
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Versand wird angefordert...";
+  }
+
+  try {
+    const result = await apiRequest("/instantly/resend", {
+      method: "POST",
+      body: JSON.stringify({ lead_id: Number(leadId) })
+    });
+
+    const requestedAt = result?.requested_at || new Date().toISOString();
+    lead.updated_at = requestedAt;
+    addTimelineEntry(
+      Number(leadId),
+      "E-Mail erneut angefordert",
+      `Wiederholungsversand an ${email} wurde bei Instantly angefordert.`
+    );
+
+    const actionOutput = document.getElementById("actionOutput");
+    const actionOutputText = document.getElementById("actionOutputText");
+    if (actionOutput && actionOutputText) {
+      actionOutputText.textContent = result?.message || "Erneuter Versand wurde angefordert.";
+      actionOutput.classList.remove("hidden");
+    }
+
+    showToast("Erneuter E-Mail-Versand wurde angefordert.", "success");
+  } catch (error) {
+    showToast(`Wiederholungsversand fehlgeschlagen: ${error.message}`, "error");
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "E-Mail erneut senden";
+    }
+  }
+}
+
 
 // ─────────────────────────────────────────────────────────────
 // TELEFONISCHE KONTAKTFREIGABE SPEICHERN
@@ -2118,6 +2224,7 @@ function renderDrawer(leadId) {
   // Telefonische Freigabe Box
   const vfSection = document.getElementById("vfCallApprovalSection");
   if (vfSection) vfSection.classList.toggle("hidden", !isVFCompany);
+  syncCompany3ResendButton(lead);
 
   // Editierbare Felder (VF) vs. readonly Spans (andere)
   document.querySelectorAll(".vf-show").forEach(el => el.classList.toggle("hidden", !isVFCompany));
