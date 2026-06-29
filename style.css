@@ -1,4 +1,4 @@
-:root{--accent:#ff5c00;--accent-hover:#e95200;--accent-soft:#fff0e8;--sb-w:232px;--sb-bg:#181818;--bg:#f2f1ef;--surface:#fff;--border:#e7e0d9;--text:#272727;--muted:#666;--green:#149447;--green-bg:#ecfaf2;--amber:#c98916;--amber-bg:#fff6dd;--red:#d92d20;--red-bg:#fff0ed;--purple:#7157d9;--purple-bg:#f2efff;--radius:24px;--shadow:0 18px 55px rgba(25,25,25,.075);--shadow-hover:0 28px 70px rgba(25,25,25,.12);--font:'Inter',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;--ease:cubic-bezier(.2,.8,.2,1)}
+﻿:root{--accent:#ff5c00;--accent-hover:#e95200;--accent-soft:#fff0e8;--sb-w:232px;--sb-bg:#181818;--bg:#f2f1ef;--surface:#fff;--border:#e7e0d9;--text:#272727;--muted:#666;--green:#149447;--green-bg:#ecfaf2;--amber:#c98916;--amber-bg:#fff6dd;--red:#d92d20;--red-bg:#fff0ed;--purple:#7157d9;--purple-bg:#f2efff;--radius:24px;--shadow:0 18px 55px rgba(25,25,25,.075);--shadow-hover:0 28px 70px rgba(25,25,25,.12);--font:'Inter',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;--ease:cubic-bezier(.2,.8,.2,1)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{min-height:100%;font-family:var(--font);font-size:14px;line-height:1.45;color:var(--text);background:radial-gradient(circle at 20% 0%,rgba(255,92,0,.11),transparent 430px),linear-gradient(180deg,#f7f6f4,#efefee);-webkit-font-smoothing:antialiased}button,input,select,textarea{font:inherit}button{cursor:pointer}a{color:var(--accent);text-decoration:none}.hidden{display:none!important}img{max-width:100%;display:block}
 .auth-loader{position:fixed;inset:0;background:#151515;z-index:9999;display:flex;align-items:center;justify-content:center}.auth-loader-inner{text-align:center}.loader-logo img{height:44px;margin:0 auto 22px}.loader-spinner{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.12);border-top-color:var(--accent);margin:0 auto 14px;animation:spin .8s linear infinite}.loader-text{color:rgba(255,255,255,.58);font-weight:700}@keyframes spin{to{transform:rotate(360deg)}}
 .app-shell{min-height:100vh;display:flex}.sidebar{position:fixed;inset:0 auto 0 0;width:var(--sb-w);background:linear-gradient(180deg,#1c1c1c,#151515);border-right:1px solid rgba(255,255,255,.08);padding:28px 14px 18px;display:flex;flex-direction:column;z-index:30;box-shadow:16px 0 42px rgba(0,0,0,.11);overflow:hidden}.sidebar:before{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.04) 1px,transparent 1px);background-size:13px 13px;opacity:.5}.sidebar:after{content:"";position:absolute;left:0;right:0;top:0;height:180px;background:radial-gradient(circle at 50% 0,rgba(255,92,0,.16),transparent 70%)}.sidebar>*{position:relative}.sidebar-brand{min-height:140px;padding:16px 12px 18px;border:0;display:flex;flex-direction:column;gap:30px}.sidebar-logo{height:40px;max-width:154px;object-fit:contain}.brand-text h2{font-size:15px;line-height:1.2;font-weight:900;color:#fff;letter-spacing:-.03em}.brand-plan{display:block;margin-top:3px;font-size:12px;font-weight:600;color:rgba(255,255,255,.76);letter-spacing:0;text-transform:none}.brand-plan:before{content:"";display:inline-block;width:17px;height:2px;margin-right:8px;background:var(--accent);vertical-align:middle;border-radius:999px}.sidebar-nav{display:flex;flex-direction:column;gap:10px;padding:0}.nav-btn{width:100%;height:44px;border:1px solid rgba(255,255,255,.08);border-radius:13px;background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.035));color:#fff;display:flex;align-items:center;gap:11px;padding:0 14px;font-size:13px;font-weight:850;text-align:left;box-shadow:inset 0 1px 0 rgba(255,255,255,.055);transition:transform .18s var(--ease),background .18s,border-color .18s,box-shadow .18s}.nav-btn svg{width:16px;height:16px;color:rgba(255,255,255,.56);transition:.18s}.nav-btn:hover{transform:translateX(3px);border-color:rgba(255,255,255,.2);background:linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,.055));box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 12px 26px rgba(0,0,0,.18)}.nav-btn:hover svg{color:#fff}.nav-btn.active{background:linear-gradient(135deg,var(--accent),#ff3600);border-color:var(--accent);box-shadow:0 14px 30px rgba(255,92,0,.34);transform:none}.nav-btn.active svg{color:#fff}.sidebar-bottom{margin-top:auto;display:flex;flex-direction:column;gap:12px;border:0;padding:0}.credits-card,.sidebar-status{background:linear-gradient(180deg,rgba(255,255,255,.115),rgba(255,255,255,.068));border:1px solid rgba(255,255,255,.095);border-radius:18px;padding:16px}.credits-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}.credits-label{font-size:10px;font-weight:900;color:rgba(255,255,255,.55);letter-spacing:.15em}.credits-value{font-size:17px;font-weight:950;color:#fff}.credits-bar-wrap{height:6px;background:rgba(255,255,255,.13);border-radius:999px;overflow:hidden}.credits-bar{height:100%;background:linear-gradient(90deg,var(--accent),#ff2f00);border-radius:999px}.credits-sub{font-size:12px;margin-top:8px;color:rgba(255,255,255,.72)}.sidebar-status{display:flex;align-items:center;gap:9px;color:#fff;font-weight:850;font-size:14px}.status-dot{width:8px;height:8px;background:#20c065;border-radius:50%;box-shadow:0 0 0 4px rgba(32,192,101,.12)}.logout-btn{height:40px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:rgba(255,255,255,.76);border-radius:13px;padding:0 12px;display:flex;align-items:center;gap:9px;font-weight:750;transition:.18s}.logout-btn:hover{color:#fff;border-color:rgba(255,255,255,.19);transform:translateY(-1px)}
@@ -9,9 +9,9 @@
 @media(max-width:1420px){.stats-row{grid-template-columns:repeat(3,1fr)}.premium-dashboard-grid{grid-template-columns:1fr}.scans-card{grid-column:auto}.top-leads-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:860px){:root{--sb-w:0}.sidebar{transform:translateX(-105%);width:244px;transition:.2s}.sidebar.open{transform:translateX(0)}.main{margin-left:0;width:100%}.menu-toggle{display:inline-flex;background:#fff;border:1px solid var(--border);border-radius:12px;width:40px;height:40px;align-items:center;justify-content:center}.topbar{padding:20px;flex-direction:column;gap:14px}.topbar-title{font-size:31px}.topbar-right{width:100%;overflow-x:auto}.view-section{padding:18px}.stats-row{grid-template-columns:1fr}.premium-form-grid{grid-template-columns:1fr}.reports-grid{grid-template-columns:1fr}.top-leads-grid{grid-template-columns:1fr}}
 
 
-/* ─────────────────────────────────────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    SELECTED ANALYSIS TOOLBAR
-───────────────────────────────────────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .selected-analysis-toolbar{
   display:flex;
   justify-content:space-between;
@@ -83,11 +83,11 @@
   }
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    PREMIUM LEAD DETAIL DRAWER OVERRIDE
    Drop-in replacement styles for detail drawer, tags, analysis cards and actions.
-   Kein HTML/JS nötig.
-───────────────────────────────────────────────────────────── */
+   Kein HTML/JS nÃ¶tig.
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .drawer-overlay{
   background:rgba(16,16,16,.42)!important;
   backdrop-filter:blur(7px)!important;
@@ -474,7 +474,7 @@
 
 
 /* ============================================================
-   LEAD DETAIL DRAWER – PREMIUM FIX V2
+   LEAD DETAIL DRAWER â€“ PREMIUM FIX V2
    Greift auf die vorhandenen IDs/Klassen aus index.html + app.js.
    Fokus: saubere Pills, bessere Lesbarkeit, professionelle Detailansicht.
 ============================================================ */
@@ -967,9 +967,9 @@
   }
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    TELEFONISCHE KONTAKTFREIGABE IM LEAD-DRAWER
-───────────────────────────────────────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .telephone-approval-card{margin-bottom:18px;padding:20px;border:1px solid rgba(35,35,35,.08);border-radius:20px;background:linear-gradient(145deg,#fff,#fffaf7);box-shadow:0 12px 30px rgba(20,20,20,.04)}
 .telephone-approval-header{margin-bottom:17px}.telephone-approval-title-row{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:8px}.telephone-approval-kicker{margin-bottom:4px;color:var(--accent);font-size:10px;line-height:1.2;font-weight:950;letter-spacing:.16em}.telephone-approval-header h4{font-size:18px;line-height:1.25;font-weight:950;letter-spacing:-.02em;color:#242424}.telephone-approval-copy{max-width:560px;color:#606060;font-size:13px;line-height:1.5}.call-approval-state{display:inline-flex;align-items:center;white-space:nowrap;min-height:28px;padding:4px 11px;border-radius:999px;background:var(--amber-bg);color:var(--amber);font-size:12px;font-weight:900}.call-approval-state.approved{background:var(--green-bg);color:var(--green)}
 .telephone-form-grid{display:grid;grid-template-columns:1fr;gap:12px}.telephone-full-width{width:100%}.telephone-form-grid .form-group{gap:6px}.telephone-form-grid .form-group input{width:100%;height:46px}.telephone-form-grid .form-group textarea{width:100%;min-height:96px;resize:vertical}.telephone-origin-hint{margin-top:3px;color:#777;font-size:12px}.call-consent-row{display:flex;align-items:flex-start;gap:10px;padding:5px 0;color:#343434;font-size:13px;font-weight:650;cursor:pointer}.call-consent-row input{width:17px;height:17px;margin-top:1px;accent-color:var(--accent);flex:0 0 17px}.telephone-save-row{display:flex;justify-content:flex-start;padding-top:3px}.telephone-save-row .btn{min-width:252px}#saveCallApprovalBtn:disabled{opacity:.68;cursor:wait}.contact-summary-grid{margin-top:17px}
@@ -977,10 +977,10 @@
 
 
 
-/* ─────────────────────────────────────────────────────────────
-   COMPANY 2 / BRAND4SOCIAL – RECRUITING-SIGNAL
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   COMPANY 2 / BRAND4SOCIAL â€“ RECRUITING-SIGNAL
    Diese Regeln wirken nur, wenn app.js company_id === 2 erkannt hat.
-───────────────────────────────────────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .tenant-company-2 .b4s-table-job-signal{
   display:inline-flex;
   align-items:center;
@@ -1201,23 +1201,23 @@
 }
 
 
-/* ───────────────────────────────────────────────────────────── */
-/* TENANT: COMPANY 4 (Bluekazi GmbH) – blaues Branding            */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* TENANT: COMPANY 4 (Bluekazi GmbH) â€“ blaues Branding            */
 /* Greift NUR wenn <html class="tenant-company-4"> (von app.js     */
-/* gesetzt). Andere Mandanten bleiben unberührt.                   */
+/* gesetzt). Andere Mandanten bleiben unberÃ¼hrt.                   */
 /* --accent kommt aus primary_color (DB). Hier werden die          */
 /* hartcodierten roten Gradient-Endwerte + orangen Glows blau.     */
-/* ───────────────────────────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 html.tenant-company-4{
   --accent-2:#0f2d6b;            /* dunkles Blau als Gradient-Endwert */
 }
 
-/* Aktiver Sidebar-Menüpunkt */
+/* Aktiver Sidebar-MenÃ¼punkt */
 html.tenant-company-4 .nav-btn.active{
   background:linear-gradient(135deg,var(--accent),var(--accent-2))!important;
   box-shadow:0 14px 30px rgba(26,68,148,.34)!important;
 }
-/* Primär-Buttons */
+/* PrimÃ¤r-Buttons */
 html.tenant-company-4 .btn-primary{
   background:linear-gradient(135deg,var(--accent),var(--accent-2))!important;
   box-shadow:0 16px 32px rgba(26,68,148,.27)!important;
@@ -1250,11 +1250,11 @@ html.tenant-company-4 .stat-card:after{
 html.tenant-company-4 .stat-card:hover{
   border-color:rgba(26,68,148,.24)!important;
 }
-/* Primär-Progress (Pipeline) */
+/* PrimÃ¤r-Progress (Pipeline) */
 html.tenant-company-4 .premium-progress i{
   background:linear-gradient(90deg,var(--accent),#3f74d4)!important;
 }
-/* Scan-Button-Spinner / Fokus-Ringe bleiben über --accent automatisch blau */
+/* Scan-Button-Spinner / Fokus-Ringe bleiben Ã¼ber --accent automatisch blau */
 
 
 /* Company 3 pipeline drag and drop */
@@ -1289,3 +1289,42 @@ html.tenant-company-4 .premium-progress i{
 .crm-reminder-card p{margin-top:9px}
 .crm-reminder-time{font-weight:900;color:var(--accent)}
 .crm-reminder-actions{display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap;margin-top:22px}
+.tenant-company-3 .crm-reminder-modal{
+  inset:auto 22px 22px auto;
+  display:block;
+  width:min(420px,calc(100vw - 32px));
+  padding:0;
+  background:transparent;
+  backdrop-filter:none;
+  pointer-events:none;
+}
+
+.tenant-company-3 .crm-reminder-card{
+  width:100%;
+  padding:20px;
+  border-radius:18px;
+  pointer-events:auto;
+}
+
+.tenant-company-3 .crm-reminder-card h2{
+  margin-bottom:12px;
+  font-size:22px;
+}
+
+.tenant-company-3 .crm-reminder-actions{
+  justify-content:flex-end;
+  gap:8px;
+  margin-top:18px;
+}
+
+@media (max-width:560px){
+  .tenant-company-3 .crm-reminder-modal{
+    right:12px;
+    bottom:12px;
+    width:calc(100vw - 24px);
+  }
+
+  .tenant-company-3 .crm-reminder-actions .btn{
+    flex:1 1 auto;
+  }
+}
