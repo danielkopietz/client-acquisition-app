@@ -242,6 +242,7 @@ let selectedLeadId = null;
 let activeScanId = null;
 let scanPollTimer = null;
 let activeQuickFilter = "all";
+let activeArchiveMode = false;
 let selectedAnalysisLeadIds = [];
 let isStartingSelectedAnalysis = false;
 let isSavingCallApproval = false;
@@ -415,8 +416,9 @@ async function loadLeads(page = 1) {
     // company_id immer mitschicken wenn vorhanden
     const cid = companyData?.id;
     const companyParam = cid ? `&company_id=${cid}` : "";
-    console.log("loadLeads company_id:", cid);
-    const data = await apiRequest(`/leads?page=${page}&limit=200${companyParam}`);
+    const archiveParam = activeArchiveMode ? "&archived=true" : "&archived=false";
+    console.log("loadLeads company_id:", cid, "archive:", activeArchiveMode);
+    const data = await apiRequest(`/leads?page=${page}&limit=500${archiveParam}${companyParam}`);
     leads = Array.isArray(data) ? data : (data.leads || data.data || []);
     selectedAnalysisLeadIds = selectedAnalysisLeadIds.filter(id => {
       const lead = leads.find(l => Number(l.id) === Number(id));
@@ -1129,6 +1131,7 @@ function applyTenantCopy() {
 // RENDER FUNCTIONS
 // ─────────────────────────────────────────────────────────────
 function renderAll() {
+  ensureArchiveControls();
   renderStatsFromLeads();
   renderTopLeads();
   renderLeadTable();
@@ -1146,11 +1149,13 @@ function renderStats(data) {
     setText("statVideos", data.videos || 0);
     setText("topbarLeads", data.total || 0);
     setText("topbarALeads", data.a_leads || 0);
+    setText("archiveCount", data.archived || 0);
   }
 }
 
 function renderStatsFromLeads() {
   const total = leads.length;
+  setText("archiveModeLabel", activeArchiveMode ? "Archiv" : "Aktive Chancen");
   const aspFound = leads.filter(l => l.contact_person || l.managing_director).length;
   const emailFound = leads.filter(l => l.final_email || l.findymail_email || l.email).length;
   const aLeads = leads.filter(l => l.priority === "A").length;
@@ -1177,6 +1182,69 @@ function renderStatsFromLeads() {
   setText("statVideos", videos);
   setText("topbarLeads", total);
   setText("topbarALeads", aLeads);
+}
+
+function isArchivedLead(lead) {
+  const archivedStatuses = ["archived", "completed", "done", "closed", "outreach_completed"];
+  return archivedStatuses.includes(String(lead?.status || "").toLowerCase()) ||
+    archivedStatuses.includes(String(lead?.crm_status || "").toLowerCase());
+}
+
+function getArchivePatchForLead(lead, archived = true) {
+  return archived ? { status: "archived" } : { status: "new" };
+}
+
+async function setLeadArchived(leadId, archived = true) {
+  const lead = leads.find(l => Number(l.id) === Number(leadId));
+  if (!lead) return;
+
+  const verb = archived ? "archivieren" : "reaktivieren";
+  if (!window.confirm(`${lead.lead_name || "Lead"} wirklich ${verb}?`)) return;
+
+  try {
+    const update = getArchivePatchForLead(lead, archived);
+    const savedLead = await apiRequest(`/leads/${leadId}`, {
+      method: "PATCH",
+      body: JSON.stringify(update)
+    });
+
+    leads = leads.filter(l => Number(l.id) !== Number(leadId));
+    selectedAnalysisLeadIds = selectedAnalysisLeadIds.filter(id => Number(id) !== Number(leadId));
+    closeDrawer();
+    await Promise.all([loadStats(), loadLeads()]);
+    addTimelineEntry(leadId, archived ? "Archiviert" : "Reaktiviert", `Lead wurde ${archived ? "ins Archiv verschoben" : "aus dem Archiv zurückgeholt"}.`);
+    showToast(archived ? "Lead archiviert." : "Lead reaktiviert.", "success");
+  } catch (err) {
+    showToast(`Archiv-Aktion fehlgeschlagen: ${err.message}`, "error");
+  }
+}
+
+function ensureArchiveControls() {
+  const opportunitiesView = document.getElementById("opportunitiesView");
+  if (!opportunitiesView || document.getElementById("archiveToggleBtn")) return;
+
+  const target = opportunitiesView.querySelector(".card-sub") || opportunitiesView.querySelector(".card") || opportunitiesView.firstElementChild;
+  if (!target) return;
+
+  const wrapper = document.createElement("div");
+  wrapper.id = "archiveControls";
+  wrapper.style.cssText = "display:flex;gap:8px;align-items:center;justify-content:flex-end;margin:8px 0 12px;";
+  wrapper.innerHTML = `
+    <span id="archiveModeLabel" class="badge badge-new">Aktive Chancen</span>
+    <button id="archiveToggleBtn" class="btn btn-ghost btn-sm" type="button">
+      Archiv anzeigen <span id="archiveCount"></span>
+    </button>
+  `;
+
+  target.insertAdjacentElement("afterend", wrapper);
+  document.getElementById("archiveToggleBtn")?.addEventListener("click", async () => {
+    activeArchiveMode = !activeArchiveMode;
+    selectedAnalysisLeadIds = [];
+    const btn = document.getElementById("archiveToggleBtn");
+    if (btn) btn.textContent = activeArchiveMode ? "Aktive Chancen anzeigen" : "Archiv anzeigen";
+    await loadLeads();
+    await loadStats();
+  });
 }
 
 function renderTopLeads() {
@@ -1362,7 +1430,7 @@ function renderSelectedAnalysisToolbar() {
   const someVisibleSelected = visibleSelectable.some(id => selectedAnalysisLeadIds.includes(id));
 
   if (toolbar) toolbar.classList.toggle("hidden", !enabled);
-  if (selectHeader) selectHeader.classList.toggle("hidden", !enabled);
+  if (selectHeader) selectHeader.classList.toggle("hidden", !enabled || activeArchiveMode);
   if (countEl) countEl.textContent = selectedCount;
   const split = getSelectedAnalysisSplit(selectedCount, policy);
   const creditsRequired = split.creditsRequired;
@@ -1460,7 +1528,7 @@ async function startSelectedAnalysis() {
 function renderLeadTable() {
   const tbody = document.getElementById("leadTableBody");
   let filtered = filterLeads();
-  const selectionEnabled = canUseSelectedAnalysis();
+  const selectionEnabled = canUseSelectedAnalysis() && !activeArchiveMode;
 
   renderSelectedAnalysisToolbar();
 
@@ -1512,7 +1580,10 @@ function renderLeadTable() {
         <td>${scoreCell(score, scoreColor)}</td>
         <td>${statusBadge(getLeadDisplayStatus(l))}</td>
         <td>${priorityBadge(l.priority)}</td>
-        <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); openDrawer(${l.id})">Öffnen</button></td>
+        <td>
+          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); openDrawer(${l.id})">Öffnen</button>
+          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); setLeadArchived(${l.id}, ${activeArchiveMode ? "false" : "true"})">${activeArchiveMode ? "Zurück" : "Archiv"}</button>
+        </td>
       </tr>
     `;
   }).join("");
@@ -1607,7 +1678,10 @@ function renderCompany4LeadRow(l, selectionEnabled) {
       <td><span class="badge badge-new">${esc(formatCampaignChannelLabel(l.channel))}</span></td>
       <td>${statusBadge(getLeadDisplayStatus(l))}</td>
       <td><span class="badge badge-C">${esc(location)}</span></td>
-      <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); openDrawer(${l.id})">Öffnen</button></td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); openDrawer(${l.id})">Öffnen</button>
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); setLeadArchived(${l.id}, ${activeArchiveMode ? "false" : "true"})">${activeArchiveMode ? "Zurück" : "Archiv"}</button>
+      </td>
     </tr>
   `;
 }
@@ -2752,6 +2826,10 @@ function statusBadge(s) {
     video_started: ["Video gestartet", "badge-video"],
     video_finished: ["Video angesehen", "badge-qualified"],
     outreach_completed: ["Abgeschlossen", "badge-qualified"],
+    archived: ["Archiv", "badge-B"],
+    completed: ["Abgeschlossen", "badge-qualified"],
+    done: ["Abgeschlossen", "badge-qualified"],
+    closed: ["Abgeschlossen", "badge-qualified"],
     no_interest: ["Kein Interesse", "badge-B"],
     disqualified: ["Nicht qualifiziert", "badge-B"],
     follow_up: ["Follow-up offen", "badge-B"],
