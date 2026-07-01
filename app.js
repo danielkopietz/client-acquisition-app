@@ -16,7 +16,8 @@ const CONFIG = {
 const COMPANY_IDS = Object.freeze({
   BRAND4SOCIAL: 2,
   VIRALITYFILMS: 3,
-  COMPANY4_RECRUITING: 4
+  COMPANY4_RECRUITING: 4,
+  RC360: 6
 });
 
 function getCurrentCompanyId() {
@@ -35,8 +36,16 @@ function isCompany4RecruitingCompany() {
   return getCurrentCompanyId() === COMPANY_IDS.COMPANY4_RECRUITING;
 }
 
+function isRC360Company() {
+  return getCurrentCompanyId() === COMPANY_IDS.RC360;
+}
+
+function usesAdvancedManufacturingScan() {
+  return isViralityFilmsCompany() || isRC360Company();
+}
+
 function usesSharedSalesCrm() {
-  return isViralityFilmsCompany() || isCompany4RecruitingCompany();
+  return isViralityFilmsCompany() || isCompany4RecruitingCompany() || isRC360Company();
 }
 
 function getSelectedAnalysisPolicy() {
@@ -70,6 +79,27 @@ function getSelectedAnalysisPolicy() {
       creditsMode: "video_only",
       requiresCallApproval: false,
       allowedStatuses: ["new", "no_email", "ready", "enriched", "contact_confirmed"]
+    };
+  }
+
+  if (isRC360Company()) {
+    return {
+      enabled: true,
+      key: "rc360",
+      maxLeads: 50,
+      requiresCallApproval: false,
+      allowedStatuses: [
+        "hubspot_imported",
+        "new",
+        "no_email",
+        "ready",
+        "outreach_failed",
+        "contact_confirmed",
+        "ready_for_analysis",
+        "called",
+        "approved",
+        "enriched"
+      ]
     };
   }
 
@@ -460,7 +490,7 @@ async function startScan() {
 
   if (!industry || !region) {
     showToast(
-      isViralityFilmsCompany()
+      usesAdvancedManufacturingScan()
         ? "Bitte Branche und Bundesland auswählen."
         : "Bitte Branche und Region eingeben.",
       "error"
@@ -489,11 +519,11 @@ async function startScan() {
     lead_limit: leadLimit
   };
 
-  // Company 3 nutzt exakt die Parameter des VF-WF01.
-  if (isViralityFilmsCompany()) {
+  // Company 3 und Company 6 nutzen die erweiterten Scan-Parameter.
+  if (usesAdvancedManufacturingScan()) {
     const city = (document.getElementById("vfCityInput")?.value || "").trim();
-    const minEmp = parseInt(document.getElementById("vfMinEmpInput")?.value, 10) || 51;
-    const maxEmp = parseInt(document.getElementById("vfMaxEmpInput")?.value, 10) || 200;
+    const minEmp = parseInt(document.getElementById("vfMinEmpInput")?.value, 10) || (isRC360Company() ? 1 : 51);
+    const maxEmp = parseInt(document.getElementById("vfMaxEmpInput")?.value, 10) || (isRC360Company() ? 100000 : 200);
 
     if (minEmp > maxEmp) {
       showToast("Mitarbeiter (von) darf nicht größer als Mitarbeiter (bis) sein.", "error");
@@ -503,7 +533,7 @@ async function startScan() {
     if (city) scanBody.city = city;
     scanBody.min_employees = minEmp;
     scanBody.max_employees = maxEmp;
-    scanBody.source = "apollo_outscraper";
+    scanBody.source = isRC360Company() ? "implisense_serper" : "apollo_outscraper";
   }
 
   try {
@@ -1039,6 +1069,7 @@ function applyCompanyBranding() {
   document.documentElement.classList.toggle("tenant-company-2", isBrand4SocialCompany());
   document.documentElement.classList.toggle("tenant-company-3", isViralityFilmsCompany());
   document.documentElement.classList.toggle("tenant-company-4", isCompany4RecruitingCompany());
+  document.documentElement.classList.toggle("tenant-company-6", isRC360Company());
 
   // Firmenname
   if (companyData.company_name) {
@@ -1483,7 +1514,7 @@ async function startSelectedAnalysis() {
 
   const confirmText = isCompany4RecruitingCompany()
     ? `Die ersten ${split.videoCount} Leads gehen mit Video in die Kampagne, weitere ${split.emailOnlyCount} ohne Video. Es werden nur Video-Credits verbraucht.`
-    : isViralityFilmsCompany()
+    : usesAdvancedManufacturingScan()
       ? "Die Leads werden vollständig analysiert und an Pitchlane + Instantly übergeben."
       : "Die Leads werden angereichert, analysiert, mit Pitchlane vorbereitet und an Instantly übergeben.";
   const confirmed = window.confirm(
@@ -2498,7 +2529,7 @@ function setupUI() {
   }
 
   // VF-Scan-Formular: erweiterte Felder nur für Company 3 einblenden
-  if (isViralityFilmsCompany()) {
+  if (usesAdvancedManufacturingScan()) {
     injectVFScanFields();
   }
 }
@@ -2575,8 +2606,8 @@ function injectVFScanFields() {
 
   replaceWithSelect("industryInput", industryOptions, "Maschinenbau");
   replaceWithSelect("regionInput", regionOptions, "Bayern");
-  replaceWithSelect("vfMinEmpInput", minEmployeeOptions, 51);
-  replaceWithSelect("vfMaxEmpInput", maxEmployeeOptions, 200);
+  replaceWithSelect("vfMinEmpInput", minEmployeeOptions, isRC360Company() ? 1 : 51);
+  replaceWithSelect("vfMaxEmpInput", maxEmployeeOptions, isRC360Company() ? 100000 : 200);
 
   const extRow = document.getElementById("vfScanExtended");
   if (extRow) extRow.classList.remove("hidden");

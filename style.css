@@ -1289,7 +1289,8 @@ html.tenant-company-4 .premium-progress i{
 .crm-reminder-card p{margin-top:9px}
 .crm-reminder-time{font-weight:900;color:var(--accent)}
 .crm-reminder-actions{display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap;margin-top:22px}
-.tenant-company-3 .crm-reminder-modal{
+.tenant-company-3 .crm-reminder-modal,
+.tenant-company-6 .crm-reminder-modal{
   inset:auto 22px 22px auto;
   display:block;
   width:min(420px,calc(100vw - 32px));
@@ -1299,32 +1300,37 @@ html.tenant-company-4 .premium-progress i{
   pointer-events:none;
 }
 
-.tenant-company-3 .crm-reminder-card{
+.tenant-company-3 .crm-reminder-card,
+.tenant-company-6 .crm-reminder-card{
   width:100%;
   padding:20px;
   border-radius:18px;
   pointer-events:auto;
 }
 
-.tenant-company-3 .crm-reminder-card h2{
+.tenant-company-3 .crm-reminder-card h2,
+.tenant-company-6 .crm-reminder-card h2{
   margin-bottom:12px;
   font-size:22px;
 }
 
-.tenant-company-3 .crm-reminder-actions{
+.tenant-company-3 .crm-reminder-actions,
+.tenant-company-6 .crm-reminder-actions{
   justify-content:flex-end;
   gap:8px;
   margin-top:18px;
 }
 
 @media (max-width:560px){
-  .tenant-company-3 .crm-reminder-modal{
+  .tenant-company-3 .crm-reminder-modal,
+  .tenant-company-6 .crm-reminder-modal{
     right:12px;
     bottom:12px;
     width:calc(100vw - 24px);
   }
 
-  .tenant-company-3 .crm-reminder-actions .btn{
+  .tenant-company-3 .crm-reminder-actions .btn,
+  .tenant-company-6 .crm-reminder-actions .btn{
     flex:1 1 auto;
   }
 }
