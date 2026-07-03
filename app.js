@@ -1089,6 +1089,8 @@ function applyCompanyBranding() {
   document.documentElement.classList.toggle("tenant-company-3", isViralityFilmsCompany());
   document.documentElement.classList.toggle("tenant-company-4", isCompany4RecruitingCompany());
   document.documentElement.classList.toggle("tenant-company-6", isRC360Company());
+  document.documentElement.classList.toggle("company-k1-premium", isKopietzCompany());
+  document.body?.classList.toggle("company-k1-premium", isKopietzCompany());
 
   // Firmenname
   if (companyData.company_name) {
