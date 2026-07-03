@@ -464,8 +464,9 @@ async function loadLeads(page = 1) {
     const cid = companyData?.id;
     const companyParam = cid ? `&company_id=${cid}` : "";
     const archiveParam = activeArchiveMode ? "&archived=true" : "&archived=false";
+    const leadLimit = Number(cid) === COMPANY_IDS.KOPIETZ_KI ? 8000 : 500;
     console.log("loadLeads company_id:", cid, "archive:", activeArchiveMode);
-    const data = await apiRequest(`/leads?page=${page}&limit=500${archiveParam}${companyParam}`);
+    const data = await apiRequest(`/leads?page=${page}&limit=${leadLimit}${archiveParam}${companyParam}`);
     leads = Array.isArray(data) ? data : (data.leads || data.data || []);
     selectedAnalysisLeadIds = selectedAnalysisLeadIds.filter(id => {
       const lead = leads.find(l => Number(l.id) === Number(id));
