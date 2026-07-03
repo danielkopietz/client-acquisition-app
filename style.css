@@ -1340,6 +1340,9 @@ html.tenant-company-4 .premium-progress i{
 .k1-upload-card {
   align-self: stretch;
 }
+.k1-upload-card .form-group {
+  margin-bottom: 12px;
+}
 .k1-upload-drop {
   display: flex;
   align-items: center;
@@ -1480,6 +1483,9 @@ html.tenant-company-4 .premium-progress i{
   margin-top: 10px;
   color: var(--muted);
   font-size: 12px;
+}
+#k1LeadListFilter {
+  min-width: 220px;
 }
 
 .k1-quality-panel {

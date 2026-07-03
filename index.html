@@ -233,6 +233,10 @@
               <h2>Kontakte importieren</h2>
               <p class="card-sub">HubSpot CSV hochladen, prüfen und direkt ins Dashboard importieren.</p>
             </div>
+            <div class="form-group">
+              <label>Lead-Liste / Branche</label>
+              <input id="k1ImportListNameInput" type="text" placeholder="z.B. Leads 2 - Maschinenbau Bayern" />
+            </div>
             <div class="k1-upload-drop" id="k1UploadDrop">
               <input id="k1CsvFileInput" type="file" accept=".csv,text/csv" class="hidden" />
               <div>
@@ -309,6 +313,9 @@
               <option value="qualified">Qualifiziert</option>
               <option value="video_ready">Video bereit</option>
               <option value="sent">An Outreach übergeben</option>
+            </select>
+            <select id="k1LeadListFilter" class="filter-select k1-only hidden">
+              <option value="">Alle Lead-Listen</option>
             </select>
           </div>
 

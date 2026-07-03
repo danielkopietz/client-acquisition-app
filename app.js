@@ -284,6 +284,7 @@ let companyData = null;
 let leads = [];
 let scans = [];
 let selectedLeadId = null;
+let activeK1LeadListKey = "";
 let activeScanId = null;
 let scanPollTimer = null;
 let activeQuickFilter = "all";
@@ -1184,6 +1185,7 @@ function applyTenantCopy() {
 // ─────────────────────────────────────────────────────────────
 function renderAll() {
   ensureArchiveControls();
+  renderK1LeadListFilter();
   renderStatsFromLeads();
   renderTopLeads();
   renderLeadTable();
@@ -1209,21 +1211,22 @@ function renderStats(data) {
 }
 
 function renderStatsFromLeads() {
-  const total = leads.length;
+  const scopedLeads = getK1ScopedLeads();
+  const total = scopedLeads.length;
   setText("archiveModeLabel", activeArchiveMode ? "Archiv" : "Aktive Chancen");
-  const aspFound = leads.filter(l => l.contact_person || l.managing_director).length;
-  const emailFound = leads.filter(l => l.final_email || l.findymail_email || l.email).length;
-  const aLeads = leads.filter(l => l.priority === "A").length;
-  const avgScore = total > 0 ? Math.round(leads.reduce((s, l) => s + (l.opportunity_score || 0), 0) / total) : 0;
-  const videos = leads.filter(l => l.video_status === "completed" || l.video_status === "ready" || l.video_url).length;
+  const aspFound = scopedLeads.filter(l => l.contact_person || l.managing_director).length;
+  const emailFound = scopedLeads.filter(l => l.final_email || l.findymail_email || l.email).length;
+  const aLeads = scopedLeads.filter(l => l.priority === "A").length;
+  const avgScore = total > 0 ? Math.round(scopedLeads.reduce((s, l) => s + (l.opportunity_score || 0), 0) / total) : 0;
+  const videos = scopedLeads.filter(l => l.video_status === "completed" || l.video_status === "ready" || l.video_url).length;
 
   setText("statLeads", total);
   setText("statASP", aspFound);
   setText("statEmail", emailFound);
 
   if (isCompany4RecruitingCompany()) {
-    const jobSignals = leads.filter(l => l.jobs_found === true || getJobsCount(l) > 0).length;
-    const outreachActive = leads.filter(l => isOutreachVisibleStatus(getLeadDisplayStatus(l))).length;
+    const jobSignals = scopedLeads.filter(l => l.jobs_found === true || getJobsCount(l) > 0).length;
+    const outreachActive = scopedLeads.filter(l => isOutreachVisibleStatus(getLeadDisplayStatus(l))).length;
     setText("statALeads", jobSignals);
     setText("statAvgScore", outreachActive);
     setText("statVideos", videos);
@@ -1304,7 +1307,7 @@ function ensureArchiveControls() {
 
 function renderTopLeads() {
   const container = document.getElementById("topLeadsPreview");
-  const topLeads = [...leads]
+  const topLeads = [...getK1ScopedLeads()]
     .sort((a, b) => {
       if (isCompany4RecruitingCompany()) {
         return (getJobsCount(b) - getJobsCount(a)) || (Number(b.id || 0) - Number(a.id || 0));
@@ -1578,6 +1581,61 @@ function k1InsightCard(label, value, sub = "") {
   `;
 }
 
+function getK1LeadListKey(lead) {
+  return String(lead?.source_pipeline || "kopietz_hubspot_csv_import").trim() || "kopietz_hubspot_csv_import";
+}
+
+function formatK1LeadListLabel(key) {
+  const raw = String(key || "kopietz_hubspot_csv_import").trim();
+  if (raw === "kopietz_hubspot_csv_import") return "Import 1 - HubSpot CSV";
+  return raw
+    .replace(/^k1_import_/, "")
+    .replace(/^kopietz_/, "")
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, char => char.toUpperCase()) || raw;
+}
+
+function getK1SelectedLeadListKey() {
+  return activeK1LeadListKey || document.getElementById("k1LeadListFilter")?.value || "";
+}
+
+function getK1ScopedLeads() {
+  if (!isKopietzCompany() || !activeK1LeadListKey) return leads;
+  return leads.filter(lead => getK1LeadListKey(lead) === activeK1LeadListKey);
+}
+
+function renderK1LeadListFilter() {
+  const select = document.getElementById("k1LeadListFilter");
+  if (!select) return;
+  if (!isKopietzCompany()) {
+    select.classList.add("hidden");
+    return;
+  }
+
+  const previous = select.value;
+  const groups = new Map();
+  leads.forEach(lead => {
+    const key = getK1LeadListKey(lead);
+    groups.set(key, (groups.get(key) || 0) + 1);
+  });
+
+  const options = [...groups.entries()]
+    .sort((a, b) => {
+      if (a[0] === "kopietz_hubspot_csv_import") return -1;
+      if (b[0] === "kopietz_hubspot_csv_import") return 1;
+      return formatK1LeadListLabel(a[0]).localeCompare(formatK1LeadListLabel(b[0]), "de");
+    })
+    .map(([key, count]) => `<option value="${esc(key)}">${esc(formatK1LeadListLabel(key))} (${count})</option>`)
+    .join("");
+
+  select.innerHTML = `<option value="">Alle Lead-Listen (${leads.length})</option>${options}`;
+  select.value = groups.has(previous) ? previous : "";
+  activeK1LeadListKey = select.value;
+  select.classList.remove("hidden");
+}
+
 function renderK1DataQuality() {
   if (!isKopietzCompany()) return;
   const summary = document.getElementById("k1QualitySummary");
@@ -1585,7 +1643,8 @@ function renderK1DataQuality() {
   const leadList = document.getElementById("k1QualityLeadList");
   if (!summary || !issuesEl || !leadList) return;
 
-  const quality = leads.map(lead => ({ lead, quality: getK1LeadQuality(lead) }));
+  const scopedLeads = getK1ScopedLeads();
+  const quality = scopedLeads.map(lead => ({ lead, quality: getK1LeadQuality(lead) }));
   const total = quality.length;
   const avg = total ? Math.round(quality.reduce((sum, item) => sum + item.quality.score, 0) / total) : 0;
   const personal = quality.filter(item => item.quality.hasPersonalEmail).length;
@@ -1636,9 +1695,10 @@ function renderK1CampaignCockpit() {
   if (!summary || !list) return;
 
   const selectedCount = selectedAnalysisLeadIds.length;
-  const sent = leads.filter(l => l.outreach_sent_at || isOutreachVisibleStatus(getLeadDisplayStatus(l))).length;
-  const opened = leads.filter(l => ["email_opened", "email_clicked", "replied"].includes(getLeadDisplayStatus(l)) || Number(l.pitchlane_video_view_count || 0) > 0).length;
-  const replies = leads.filter(l => getLeadDisplayStatus(l) === "replied").length;
+  const scopedLeads = getK1ScopedLeads();
+  const sent = scopedLeads.filter(l => l.outreach_sent_at || isOutreachVisibleStatus(getLeadDisplayStatus(l))).length;
+  const opened = scopedLeads.filter(l => ["email_opened", "email_clicked", "replied"].includes(getLeadDisplayStatus(l)) || Number(l.pitchlane_video_view_count || 0) > 0).length;
+  const replies = scopedLeads.filter(l => getLeadDisplayStatus(l) === "replied").length;
   const startBtn = document.getElementById("k1StartCampaignBtn");
   if (startBtn) {
     startBtn.disabled = selectedCount === 0 || isStartingSelectedAnalysis;
@@ -1652,7 +1712,7 @@ function renderK1CampaignCockpit() {
   ].join("");
 
   const groups = new Map();
-  leads.forEach(lead => {
+  scopedLeads.forEach(lead => {
     const key = getK1CampaignKey(lead);
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(lead);
@@ -1685,7 +1745,8 @@ function renderK1IcpLearning() {
   if (!summary || !segments || !signals) return;
 
   const groups = new Map();
-  leads.forEach(lead => {
+  const scopedLeads = getK1ScopedLeads();
+  scopedLeads.forEach(lead => {
     const key = [lead.industry || "Unbekannte Branche", lead.region || lead.city || "Unbekannte Region"].join(" · ");
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(lead);
@@ -1699,8 +1760,8 @@ function renderK1IcpLearning() {
     })
     .sort((a, b) => b.score - a.score);
 
-  const highPotential = leads.filter(l => Number(l.opportunity_score || 0) >= 70).length;
-  const hot = leads.filter(l => getLeadDisplayStatus(l) === "replied" || Number(l.pitchlane_video_finish_count || 0) > 0 || l.pitchlane_hot_lead === true).length;
+  const highPotential = scopedLeads.filter(l => Number(l.opportunity_score || 0) >= 70).length;
+  const hot = scopedLeads.filter(l => getLeadDisplayStatus(l) === "replied" || Number(l.pitchlane_video_finish_count || 0) > 0 || l.pitchlane_hot_lead === true).length;
   summary.innerHTML = [
     k1InsightCard("Segmente", groups.size, "Branche + Region"),
     k1InsightCard("Hohe Chancen", highPotential, "Score ab 70%"),
@@ -1716,16 +1777,16 @@ function renderK1IcpLearning() {
   `).join("") || '<div class="empty-state">Noch nicht genug Daten für ICP-Lernen.</div>';
 
   const signalRows = [
-    ["Persönliche Entscheider-Mail", leads.filter(l => getLeadEmail(l) && !isGenericMailbox(getLeadEmail(l))).length],
-    ["Generische Mailbox, trotzdem nutzbar", leads.filter(l => getLeadEmail(l) && isGenericMailbox(getLeadEmail(l))).length],
-    ["Video geöffnet", leads.filter(l => Number(l.pitchlane_video_view_count || 0) > 0).length],
-    ["Video vollständig gesehen", leads.filter(l => Number(l.pitchlane_video_finish_count || 0) > 0).length],
-    ["Antwort erhalten", leads.filter(l => getLeadDisplayStatus(l) === "replied").length],
-    ["Kein Interesse", leads.filter(l => String(l.crm_status || l.status || "").toLowerCase() === "no_interest").length]
+    ["Persönliche Entscheider-Mail", scopedLeads.filter(l => getLeadEmail(l) && !isGenericMailbox(getLeadEmail(l))).length],
+    ["Generische Mailbox, trotzdem nutzbar", scopedLeads.filter(l => getLeadEmail(l) && isGenericMailbox(getLeadEmail(l))).length],
+    ["Video geöffnet", scopedLeads.filter(l => Number(l.pitchlane_video_view_count || 0) > 0).length],
+    ["Video vollständig gesehen", scopedLeads.filter(l => Number(l.pitchlane_video_finish_count || 0) > 0).length],
+    ["Antwort erhalten", scopedLeads.filter(l => getLeadDisplayStatus(l) === "replied").length],
+    ["Kein Interesse", scopedLeads.filter(l => String(l.crm_status || l.status || "").toLowerCase() === "no_interest").length]
   ];
   signals.innerHTML = signalRows.map(([label, count]) => `
     <div class="k1-insight-row">
-      <div><strong>${esc(label)}</strong><p>${Math.round((count / Math.max(leads.length, 1)) * 100)}% der Leads</p></div>
+      <div><strong>${esc(label)}</strong><p>${Math.round((count / Math.max(scopedLeads.length, 1)) * 100)}% der Leads</p></div>
       <div class="metric">${count}</div>
     </div>
   `).join("");
@@ -1787,10 +1848,12 @@ async function importK1CsvContacts() {
   if (statusEl) statusEl.textContent = "Datei wird gelesen und importiert...";
   try {
     const csv = await file.text();
+    const listName = (document.getElementById("k1ImportListNameInput")?.value || file.name || "HubSpot CSV Import").trim();
     const result = await apiRequest("/contacts/import", {
       method: "POST",
       body: JSON.stringify({
         filename: file.name,
+        list_name: listName,
         csv
       })
     });
@@ -1799,7 +1862,7 @@ async function importK1CsvContacts() {
     const valid = Number(result.valid_contacts || result.valid_count || 0);
     if (statusEl) statusEl.textContent = `Import abgeschlossen: ${inserted} neu, ${updated} aktualisiert, ${valid} gültig.`;
     showToast("CSV-Kontakte wurden importiert.", "success");
-    addActivity("CSV importiert", `${inserted} neue und ${updated} aktualisierte Kontakte für Company 1.`);
+    addActivity("CSV importiert", `${inserted} neue und ${updated} aktualisierte Kontakte für ${listName}.`);
     await Promise.all([loadStats(), loadLeads()]);
   } catch (error) {
     if (statusEl) statusEl.textContent = `Import fehlgeschlagen: ${error.message}`;
@@ -2050,6 +2113,7 @@ function filterLeads() {
   const search = document.getElementById("searchInput")?.value?.toLowerCase() || "";
   const priorityVal = document.getElementById("priorityFilter")?.value || "";
   const statusVal = document.getElementById("statusFilter")?.value || "";
+  const k1ListVal = isKopietzCompany() ? getK1SelectedLeadListKey() : "";
 
   return leads.filter(l => {
     const matchSearch = !search ||
@@ -2059,6 +2123,7 @@ function filterLeads() {
       (l.managing_director || "").toLowerCase().includes(search);
 
     const matchPriority = !priorityVal || l.priority === priorityVal;
+    const matchK1List = !k1ListVal || getK1LeadListKey(l) === k1ListVal;
     const displayStatus = getLeadDisplayStatus(l);
     const matchStatus = !statusVal || displayStatus === statusVal || l.status === statusVal || l.outreach_status === statusVal;
 
@@ -2073,7 +2138,7 @@ function filterLeads() {
     else if (activeQuickFilter === "email-ready") matchFilter = !!(l.final_email || l.findymail_email || l.email);
     else if (activeQuickFilter === "video-ready") matchFilter = l.video_status === "completed" || l.video_status === "ready" || !!l.video_url;
 
-    return matchSearch && matchPriority && matchStatus && matchFilter;
+    return matchSearch && matchPriority && matchStatus && matchK1List && matchFilter;
   });
 }
 
@@ -2204,8 +2269,9 @@ function renderPipeline() {
         won: "Gewonnen"
       };
 
+  const scopedLeads = getK1ScopedLeads();
   board.innerHTML = columns.map(col => {
-    const colLeads = leads.filter(l => getLeadPipelineStatus(l) === col);
+    const colLeads = scopedLeads.filter(l => getLeadPipelineStatus(l) === col);
     const dropAttributes = usesSalesCrm
       ? `data-pipeline-status="${col}" ondragover="allowPipelineDrop(event)" ondragleave="leavePipelineDrop(event)" ondrop="dropLeadToPipeline(event, '${col}')"`
       : "";
@@ -2229,15 +2295,16 @@ function renderPipeline() {
 }
 
 function renderReports() {
-  const total = leads.length;
+  const scopedLeads = getK1ScopedLeads();
+  const total = scopedLeads.length;
   if (!total) return;
 
-  const emailFound = leads.filter(l => l.final_email || l.findymail_email || l.email).length;
-  const aLeads = leads.filter(l => l.priority === "A").length;
-  const noAds = leads.filter(l => !l.ads_found).length;
-  const videos = leads.filter(l => l.video_status === "completed" || l.video_status === "ready" || l.video_url).length;
-  const sent = leads.filter(l => isOutreachVisibleStatus(getLeadDisplayStatus(l))).length;
-  const avgScore = Math.round(leads.reduce((s, l) => s + (l.opportunity_score || 0), 0) / total);
+  const emailFound = scopedLeads.filter(l => l.final_email || l.findymail_email || l.email).length;
+  const aLeads = scopedLeads.filter(l => l.priority === "A").length;
+  const noAds = scopedLeads.filter(l => !l.ads_found).length;
+  const videos = scopedLeads.filter(l => l.video_status === "completed" || l.video_status === "ready" || l.video_url).length;
+  const sent = scopedLeads.filter(l => isOutreachVisibleStatus(getLeadDisplayStatus(l))).length;
+  const avgScore = Math.round(scopedLeads.reduce((s, l) => s + (l.opportunity_score || 0), 0) / total);
 
   document.getElementById("reportSummary").innerHTML = `
     ${reportRow("Analysierte Unternehmen", total)}
@@ -3004,6 +3071,18 @@ function bindEvents() {
   document.getElementById("searchInput")?.addEventListener("input", renderLeadTable);
   document.getElementById("priorityFilter")?.addEventListener("change", renderLeadTable);
   document.getElementById("statusFilter")?.addEventListener("change", renderLeadTable);
+  document.getElementById("k1LeadListFilter")?.addEventListener("change", () => {
+    activeK1LeadListKey = document.getElementById("k1LeadListFilter")?.value || "";
+    selectedAnalysisLeadIds = [];
+    renderStatsFromLeads();
+    renderTopLeads();
+    renderLeadTable();
+    renderPipeline();
+    renderReports();
+    renderK1DataQuality();
+    renderK1CampaignCockpit();
+    renderK1IcpLearning();
+  });
 
   // Selected analysis
   document.getElementById("selectAllLeadsCheckbox")?.addEventListener("change", toggleAllVisibleAnalysisLeads);
