@@ -49,6 +49,18 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
           Pipeline
         </button>
+        <button class="nav-btn k1-only hidden" data-view="dataQuality">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
+          Datenqualität
+        </button>
+        <button class="nav-btn k1-only hidden" data-view="campaigns">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 11v2a4 4 0 0 0 4 4h1"/><path d="M20 12h-8"/><path d="M16 8l4 4-4 4"/><path d="M8 7h1a4 4 0 0 1 4 4v1"/></svg>
+          Kampagnen
+        </button>
+        <button class="nav-btn k1-only hidden" data-view="icp">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><path d="M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M19.07 4.93l-2.83 2.83M7.76 16.24l-2.83 2.83"/></svg>
+          ICP Lernen
+        </button>
         <button class="nav-btn" data-view="scans">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3z"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
           Scans
@@ -215,6 +227,27 @@
             </div>
           </div>
 
+          <!-- K1 CSV IMPORT -->
+          <div class="card k1-upload-card hidden" id="k1UploadCard">
+            <div class="card-header">
+              <h2>Kontakte importieren</h2>
+              <p class="card-sub">HubSpot CSV hochladen, prüfen und direkt ins Dashboard importieren.</p>
+            </div>
+            <div class="k1-upload-drop" id="k1UploadDrop">
+              <input id="k1CsvFileInput" type="file" accept=".csv,text/csv" class="hidden" />
+              <div>
+                <span class="k1-upload-icon">CSV</span>
+                <strong id="k1UploadFileName">CSV-Datei auswählen</strong>
+                <p id="k1UploadMeta">Unterstützt HubSpot-Export mit Kontakten, Firmen, Website, Branche und Status.</p>
+              </div>
+              <button type="button" class="btn btn-ghost btn-sm" id="k1ChooseCsvBtn">Datei wählen</button>
+            </div>
+            <div class="k1-upload-actions">
+              <button type="button" class="btn btn-primary" id="k1ImportCsvBtn" disabled>Upload importieren</button>
+              <span id="k1UploadStatus" class="k1-upload-status">Noch keine Datei ausgewählt.</span>
+            </div>
+          </div>
+
           <!-- LETZTE SCANS -->
           <div class="card">
             <div class="card-header">
@@ -343,6 +376,76 @@
       </section>
 
       <!-- ─── SCANS VIEW ─── -->
+      <section id="dataQualityView" class="view-section k1-only hidden">
+        <div class="card">
+          <div class="card-header">
+            <h2>Datenqualität</h2>
+            <p class="card-sub">Prüfe Import, Ansprechpartner, E-Mail-Qualität und Versandrisiken vor der Skalierung.</p>
+          </div>
+          <div id="k1QualitySummary" class="k1-insight-grid"></div>
+          <div class="k1-split-grid">
+            <div>
+              <h3 class="k1-section-title">Häufige Datenprobleme</h3>
+              <div id="k1QualityIssues" class="k1-insight-list"></div>
+            </div>
+            <div>
+              <h3 class="k1-section-title">Leads mit Handlungsbedarf</h3>
+              <div id="k1QualityLeadList" class="k1-insight-list"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="campaignsView" class="view-section k1-only hidden">
+        <div class="card">
+          <div class="card-header">
+            <h2>Kampagnen-Cockpit</h2>
+            <p class="card-sub">Starte WF02 weiter automatisch, aber gruppiere Runs nach Zielgruppe und Angebot.</p>
+          </div>
+          <div class="k1-campaign-launch">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Kampagnenname</label>
+                <input id="k1CampaignNameInput" type="text" placeholder="z.B. KI Acquisition Demo · Maschinenbau Juli" />
+              </div>
+              <div class="form-group">
+                <label>Zielsegment</label>
+                <input id="k1CampaignSegmentInput" type="text" placeholder="z.B. KMU · Maschinenbau · Bayern" />
+              </div>
+              <div class="form-group">
+                <label>Angebot / CTA</label>
+                <input id="k1CampaignOfferInput" type="text" value="Demo Call für KI Acquisition Client System" />
+              </div>
+            </div>
+            <div class="k1-campaign-note">Die Auswahl unter Chancen bleibt der Startpunkt. Diese Felder werden beim Button „Leads analysieren” an WF02 mitgegeben.</div>
+          </div>
+          <button class="btn-primary" id="k1StartCampaignBtn" type="button">Ausgewaehlte Leads analysieren</button>
+          <div id="k1CampaignSummary" class="k1-insight-grid"></div>
+          <h3 class="k1-section-title">Aktuelle Kampagnenläufe</h3>
+          <div id="k1CampaignList" class="k1-insight-list"></div>
+        </div>
+      </section>
+
+      <section id="icpView" class="view-section k1-only hidden">
+        <div class="card">
+          <div class="card-header">
+            <h2>ICP Lernen</h2>
+            <p class="card-sub">Erkenne, welche Branchen, Regionen und Signale für euer eigenes Akquise-System funktionieren.</p>
+          </div>
+          <div id="k1IcpSummary" class="k1-insight-grid"></div>
+          <div class="k1-split-grid">
+            <div>
+              <h3 class="k1-section-title">Top Segmente</h3>
+              <div id="k1IcpSegments" class="k1-insight-list"></div>
+            </div>
+            <div>
+              <h3 class="k1-section-title">Lernsignale</h3>
+              <div id="k1IcpSignals" class="k1-insight-list"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section id="scansView" class="view-section">
         <div class="card">
           <div class="card-header">
@@ -451,10 +554,11 @@
             <span id="callApprovalState" class="call-approval-state">Nicht freigegeben</span>
           </div>
           <p id="originalManagingDirector" class="hidden" style="font-size:12px;color:var(--muted);margin-bottom:10px;"></p>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:10px;cursor:pointer;">
+          <label id="callApprovedLabel" style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:10px;cursor:pointer;">
             <input type="checkbox" id="callApproved" style="width:15px;height:15px;accent-color:var(--accent);" />
             Unternehmen hat telefonisch zugestimmt, dass eine E-Mail gesendet werden darf.
           </label>
+          <p id="k1CallApprovalHint" class="hidden" style="font-size:12px;color:var(--muted);margin:0 0 10px;">Telefonische Freigabe kann dokumentiert werden, ist für den E-Mail-Versand aber keine Pflicht.</p>
           <textarea id="callNotes" placeholder="Telefonnotiz: z.B. Herr Marx ist zuständig, Versand bestätigt." style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;min-height:70px;resize:vertical;margin-bottom:12px;background:var(--bg-2);color:var(--text-1);box-sizing:border-box;"></textarea>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
             <button id="saveCallApprovalBtn" class="btn btn-primary" style="padding:9px 18px;font-size:13px;">Kontakt &amp; Freigabe speichern</button>
@@ -532,6 +636,11 @@
         <div class="detail-section">
           <h4>Marketing-Analyse</h4>
           <div id="dMarketingAnalysis" class="analysis-box">–</div>
+        </div>
+
+        <div class="detail-section k1-only hidden" id="k1PersonalizationPanel">
+          <h4>Personalisierungsqualität</h4>
+          <div id="k1PersonalizationQuality" class="k1-quality-panel">–</div>
         </div>
 
         <div class="quick-actions">

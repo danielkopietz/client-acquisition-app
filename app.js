@@ -14,6 +14,7 @@ const CONFIG = {
 // TENANT POLICIES – Auswahl-Analyse sauber pro Kunde trennen
 // ─────────────────────────────────────────────────────────────
 const COMPANY_IDS = Object.freeze({
+  KOPIETZ_KI: 1,
   BRAND4SOCIAL: 2,
   VIRALITYFILMS: 3,
   COMPANY4_RECRUITING: 4,
@@ -22,6 +23,10 @@ const COMPANY_IDS = Object.freeze({
 
 function getCurrentCompanyId() {
   return Number(companyData?.id || 0);
+}
+
+function isKopietzCompany() {
+  return getCurrentCompanyId() === COMPANY_IDS.KOPIETZ_KI;
 }
 
 function isBrand4SocialCompany() {
@@ -45,10 +50,20 @@ function usesAdvancedManufacturingScan() {
 }
 
 function usesSharedSalesCrm() {
-  return isViralityFilmsCompany() || isCompany4RecruitingCompany() || isRC360Company();
+  return isKopietzCompany() || isViralityFilmsCompany() || isCompany4RecruitingCompany() || isRC360Company();
 }
 
 function getSelectedAnalysisPolicy() {
+  if (isKopietzCompany()) {
+    return {
+      enabled: true,
+      key: "kopietz_ki_solution",
+      maxLeads: 50,
+      requiresCallApproval: false,
+      allowedStatuses: ["hubspot_imported", "new", "no_email", "ready", "enriched", "contact_confirmed", "ready_for_analysis", "called", "approved"]
+    };
+  }
+
   if (isBrand4SocialCompany()) {
     return {
       enabled: true,
@@ -117,7 +132,7 @@ function getLeadEmail(lead) {
 
   // Company 3 bearbeitet Kontaktdaten manuell im Dashboard.
   // Deshalb hat die manuelle E-Mail Vorrang vor automatisch gefundenen E-Mail-Feldern.
-  if (isViralityFilmsCompany()) {
+  if (isKopietzCompany() || isViralityFilmsCompany()) {
     return lead.email || lead.final_email || lead.findymail_email || "";
   }
 
@@ -425,6 +440,7 @@ async function loadCompanyData() {
     const data = await apiRequest("/companies");
     companyData = Array.isArray(data) ? data[0] : data;
     applyCompanyBranding();
+    syncK1UploadUi();
   } catch (err) {
     console.warn("Company-Daten konnten nicht geladen werden:", err);
   }
@@ -701,7 +717,8 @@ async function sendToOutreach(leadId) {
 // COMPANY 3: E-MAIL ERNEUT ÜBER INSTANTLY SENDEN
 // ─────────────────────────────────────────────────────────────
 function canResendCompany3Email(lead) {
-  if (!isViralityFilmsCompany() || !lead || lead.call_approved !== true) return false;
+  if (!(isKopietzCompany() || isViralityFilmsCompany()) || !lead) return false;
+  if (isViralityFilmsCompany() && lead.call_approved !== true) return false;
   if (!getLeadEmail(lead)) return false;
 
   const resendableStatuses = new Set([
@@ -726,7 +743,7 @@ function canResendCompany3Email(lead) {
 function syncCompany3ResendButton(lead) {
   let button = document.getElementById("resendInstantlyEmailBtn");
 
-  if (!isViralityFilmsCompany()) {
+  if (!(isKopietzCompany() || isViralityFilmsCompany())) {
     button?.remove();
     return;
   }
@@ -754,7 +771,7 @@ function syncCompany3ResendButton(lead) {
 }
 
 async function resendCompany3Email(leadId) {
-  if (!isViralityFilmsCompany()) return;
+  if (!(isKopietzCompany() || isViralityFilmsCompany())) return;
 
   const lead = leads.find(item => Number(item.id) === Number(leadId));
   if (!lead || !canResendCompany3Email(lead)) {
@@ -808,13 +825,14 @@ async function resendCompany3Email(leadId) {
 // TELEFONISCHE KONTAKTFREIGABE SPEICHERN
 // ─────────────────────────────────────────────────────────────
 async function disqualifyLead(leadId) {
-  if (!isViralityFilmsCompany()) return;
+  if (!(isKopietzCompany() || isViralityFilmsCompany())) return;
   if (!confirm("Lead als 'Kein Interesse' markieren? Diese Aktion kann nicht rückgängig gemacht werden.")) return;
   try {
     const updatedLead = await apiRequest(`/leads/${leadId}`, {
       method: "PATCH",
       body: JSON.stringify({
         crm_status: "no_interest",
+        status: "no_interest",
         call_notes: (document.getElementById("callNotes")?.value || "") + " [Kein Interesse – manuell markiert]"
       })
     });
@@ -884,7 +902,7 @@ async function saveCallApproval(leadId) {
     // Sonst überschreibt renderDrawer die Felder mit alten Werten
     const index = leads.findIndex(l => Number(l.id) === Number(leadId));
     if (index >= 0) {
-      const manualEmailUpdate = isViralityFilmsCompany()
+      const manualEmailUpdate = (isKopietzCompany() || isViralityFilmsCompany())
         ? {
             final_email: email || updatedLead?.final_email || "",
             final_email_type: email ? "manual" : (updatedLead?.final_email_type || null)
@@ -1066,6 +1084,7 @@ function applyCompanyBranding() {
   if (!companyData) return;
 
   // Tenant-spezifische Darstellungen bleiben strikt getrennt.
+  document.documentElement.classList.toggle("tenant-company-1", isKopietzCompany());
   document.documentElement.classList.toggle("tenant-company-2", isBrand4SocialCompany());
   document.documentElement.classList.toggle("tenant-company-3", isViralityFilmsCompany());
   document.documentElement.classList.toggle("tenant-company-4", isCompany4RecruitingCompany());
@@ -1168,6 +1187,9 @@ function renderAll() {
   renderLeadTable();
   renderPipeline();
   renderReports();
+  renderK1DataQuality();
+  renderK1CampaignCockpit();
+  renderK1IcpLearning();
 }
 
 function renderStats(data) {
@@ -1416,6 +1438,7 @@ function toggleAnalysisLead(leadId) {
   }
 
   renderLeadTable();
+  renderK1CampaignCockpit();
 }
 
 function toggleAllVisibleAnalysisLeads() {
@@ -1440,6 +1463,7 @@ function toggleAllVisibleAnalysisLeads() {
   }
 
   renderLeadTable();
+  renderK1CampaignCockpit();
 }
 
 function renderSelectedAnalysisToolbar() {
@@ -1491,6 +1515,305 @@ function renderSelectedAnalysisToolbar() {
   }
 }
 
+function isGenericMailbox(email) {
+  const local = String(email || "").toLowerCase().split("@")[0] || "";
+  return [
+    "info", "kontakt", "office", "mail", "hello", "hallo", "support", "service",
+    "team", "admin", "sales", "marketing", "bewerbung", "jobs", "karriere",
+    "buchhaltung", "rechnung", "anfrage", "projekte", "datenschutz"
+  ].includes(local);
+}
+
+function getK1LeadQuality(lead) {
+  const email = getLeadEmail(lead);
+  const hasWebsite = !!(lead.website || lead.website_url || lead._website_url);
+  const hasContact = getLeadContactPerson(lead) !== "–" && getLeadContactPerson(lead) !== "â€“";
+  const hasPhone = !!String(lead.phone || "").trim();
+  const hasIndustry = !!String(lead.industry || "").trim();
+  const hasCity = !!String(lead.city || "").trim();
+  const hasPersonalEmail = !!email && !isGenericMailbox(email);
+  const hasImpressum = !!(lead.imprint_url || lead.impressum_source_url || lead.imp_url);
+  const hasPersonalization = !!(lead.sales_hook || lead.final_sales_hook || lead.personalization_summary || lead.marketing_analysis);
+
+  const checks = [
+    hasWebsite,
+    !!email,
+    hasPersonalEmail,
+    hasContact,
+    hasPhone,
+    hasIndustry,
+    hasCity,
+    hasImpressum,
+    hasPersonalization
+  ];
+
+  const issues = [];
+  if (!hasWebsite) issues.push("Website fehlt");
+  if (!email) issues.push("E-Mail fehlt");
+  if (email && !hasPersonalEmail) issues.push("Nur generische E-Mail");
+  if (!hasContact) issues.push("Ansprechpartner fehlt");
+  if (!hasIndustry) issues.push("Branche fehlt");
+  if (!hasImpressum) issues.push("Impressum nicht bestätigt");
+  if (!hasPersonalization) issues.push("Personalisierung fehlt");
+  if (String(lead.status || "").toLowerCase() === "no_interest" || String(lead.crm_status || "").toLowerCase() === "no_interest") issues.push("Kein Interesse");
+
+  return {
+    score: Math.round((checks.filter(Boolean).length / checks.length) * 100),
+    issues,
+    hasPersonalEmail,
+    email,
+    sourceCount: [hasWebsite, hasImpressum, hasIndustry, hasCity, hasPhone].filter(Boolean).length
+  };
+}
+
+function k1InsightCard(label, value, sub = "") {
+  return `
+    <div class="k1-insight-card">
+      <span class="k1-insight-label">${esc(label)}</span>
+      <span class="k1-insight-value">${esc(value)}</span>
+      ${sub ? `<div class="k1-insight-sub">${esc(sub)}</div>` : ""}
+    </div>
+  `;
+}
+
+function renderK1DataQuality() {
+  if (!isKopietzCompany()) return;
+  const summary = document.getElementById("k1QualitySummary");
+  const issuesEl = document.getElementById("k1QualityIssues");
+  const leadList = document.getElementById("k1QualityLeadList");
+  if (!summary || !issuesEl || !leadList) return;
+
+  const quality = leads.map(lead => ({ lead, quality: getK1LeadQuality(lead) }));
+  const total = quality.length;
+  const avg = total ? Math.round(quality.reduce((sum, item) => sum + item.quality.score, 0) / total) : 0;
+  const personal = quality.filter(item => item.quality.hasPersonalEmail).length;
+  const generic = quality.filter(item => item.quality.email && !item.quality.hasPersonalEmail).length;
+  const ready = quality.filter(item => item.quality.score >= 70 && item.quality.email).length;
+
+  summary.innerHTML = [
+    k1InsightCard("Datenqualität", `${avg}%`, "Durchschnitt über aktive Leads"),
+    k1InsightCard("Versandbereit", ready, "Score ab 70% und E-Mail vorhanden"),
+    k1InsightCard("Persönliche E-Mails", personal, `${generic} generische Postfächer`),
+    k1InsightCard("Handlungsbedarf", quality.filter(item => item.quality.issues.length).length, "Mindestens ein Datenproblem")
+  ].join("");
+
+  const issueCounts = new Map();
+  quality.forEach(item => item.quality.issues.forEach(issue => issueCounts.set(issue, (issueCounts.get(issue) || 0) + 1)));
+  const issueRows = [...issueCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8);
+  issuesEl.innerHTML = issueRows.length
+    ? issueRows.map(([issue, count]) => `
+      <div class="k1-insight-row">
+        <div><strong>${esc(issue)}</strong><p>${Math.round((count / Math.max(total, 1)) * 100)}% der Leads betroffen</p></div>
+        <div class="metric">${count}</div>
+      </div>
+    `).join("")
+    : '<div class="empty-state">Keine Datenprobleme erkannt.</div>';
+
+  leadList.innerHTML = quality
+    .filter(item => item.quality.issues.length)
+    .sort((a, b) => a.quality.score - b.quality.score)
+    .slice(0, 12)
+    .map(({ lead, quality }) => `
+      <div class="k1-insight-row" onclick="openDrawer(${lead.id})">
+        <div><strong>${esc(lead.lead_name || "Unbenannter Lead")}</strong><p>${esc(quality.issues.slice(0, 3).join(" · "))}</p></div>
+        <div class="metric">${quality.score}%</div>
+      </div>
+    `).join("") || '<div class="empty-state">Alle sichtbaren Leads sind solide gepflegt.</div>';
+}
+
+function getK1CampaignKey(lead) {
+  return lead.analysis_batch_id || lead.campaign_name || lead.instantly_campaign_id || lead.source_pipeline || "Noch keiner Kampagne zugeordnet";
+}
+
+function renderK1CampaignCockpit() {
+  if (!isKopietzCompany()) return;
+  const summary = document.getElementById("k1CampaignSummary");
+  const list = document.getElementById("k1CampaignList");
+  if (!summary || !list) return;
+
+  const selectedCount = selectedAnalysisLeadIds.length;
+  const sent = leads.filter(l => l.outreach_sent_at || isOutreachVisibleStatus(getLeadDisplayStatus(l))).length;
+  const opened = leads.filter(l => ["email_opened", "email_clicked", "replied"].includes(getLeadDisplayStatus(l)) || Number(l.pitchlane_video_view_count || 0) > 0).length;
+  const replies = leads.filter(l => getLeadDisplayStatus(l) === "replied").length;
+  const startBtn = document.getElementById("k1StartCampaignBtn");
+  if (startBtn) {
+    startBtn.disabled = selectedCount === 0 || isStartingSelectedAnalysis;
+    startBtn.textContent = selectedCount ? `${selectedCount} Leads analysieren` : "Leads unter Chancen auswaehlen";
+  }
+  summary.innerHTML = [
+    k1InsightCard("Ausgewählt", selectedCount, "Leads für den nächsten WF02 Lauf"),
+    k1InsightCard("Gesendet", sent, "Instantly/Outreach dokumentiert"),
+    k1InsightCard("Engagement", opened, "Mail oder Video geöffnet"),
+    k1InsightCard("Antworten", replies, "Antwortstatus im Monitoring")
+  ].join("");
+
+  const groups = new Map();
+  leads.forEach(lead => {
+    const key = getK1CampaignKey(lead);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(lead);
+  });
+
+  list.innerHTML = [...groups.entries()]
+    .sort((a, b) => b[1].length - a[1].length)
+    .slice(0, 12)
+    .map(([key, group]) => {
+      const groupSent = group.filter(l => l.outreach_sent_at || isOutreachVisibleStatus(getLeadDisplayStatus(l))).length;
+      const groupHot = group.filter(l => Number(l.pitchlane_video_finish_count || 0) > 0 || l.pitchlane_hot_lead === true || getLeadDisplayStatus(l) === "replied").length;
+      return `
+        <div class="k1-insight-row">
+          <div><strong>${esc(key)}</strong><p>${groupSent} gesendet · ${groupHot} Hot/Antwort · Ø ${avgScore(group)}% Potential</p></div>
+          <div class="metric">${group.length}</div>
+        </div>
+      `;
+    }).join("") || '<div class="empty-state">Noch keine Kampagnenläufe sichtbar.</div>';
+}
+
+function avgScore(items) {
+  return items.length ? Math.round(items.reduce((sum, lead) => sum + Number(lead.opportunity_score || 0), 0) / items.length) : 0;
+}
+
+function renderK1IcpLearning() {
+  if (!isKopietzCompany()) return;
+  const summary = document.getElementById("k1IcpSummary");
+  const segments = document.getElementById("k1IcpSegments");
+  const signals = document.getElementById("k1IcpSignals");
+  if (!summary || !segments || !signals) return;
+
+  const groups = new Map();
+  leads.forEach(lead => {
+    const key = [lead.industry || "Unbekannte Branche", lead.region || lead.city || "Unbekannte Region"].join(" · ");
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(lead);
+  });
+
+  const ranked = [...groups.entries()]
+    .map(([key, group]) => {
+      const engagement = group.filter(l => ["email_opened", "email_clicked", "replied"].includes(getLeadDisplayStatus(l)) || Number(l.pitchlane_video_view_count || 0) > 0).length;
+      const personalEmailRate = Math.round((group.filter(l => !isGenericMailbox(getLeadEmail(l)) && getLeadEmail(l)).length / Math.max(group.length, 1)) * 100);
+      return { key, group, engagement, personalEmailRate, score: avgScore(group) + engagement * 8 + personalEmailRate / 5 };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  const highPotential = leads.filter(l => Number(l.opportunity_score || 0) >= 70).length;
+  const hot = leads.filter(l => getLeadDisplayStatus(l) === "replied" || Number(l.pitchlane_video_finish_count || 0) > 0 || l.pitchlane_hot_lead === true).length;
+  summary.innerHTML = [
+    k1InsightCard("Segmente", groups.size, "Branche + Region"),
+    k1InsightCard("Hohe Chancen", highPotential, "Score ab 70%"),
+    k1InsightCard("Hot Signals", hot, "Antwort oder starkes Video-Signal"),
+    k1InsightCard("Top ICP Score", ranked[0] ? Math.round(ranked[0].score) : 0, ranked[0]?.key || "Noch kein Segment")
+  ].join("");
+
+  segments.innerHTML = ranked.slice(0, 10).map(item => `
+    <div class="k1-insight-row">
+      <div><strong>${esc(item.key)}</strong><p>${item.engagement} Engagement · ${item.personalEmailRate}% persönliche E-Mails · Ø ${avgScore(item.group)}%</p></div>
+      <div class="metric">${item.group.length}</div>
+    </div>
+  `).join("") || '<div class="empty-state">Noch nicht genug Daten für ICP-Lernen.</div>';
+
+  const signalRows = [
+    ["Persönliche Entscheider-Mail", leads.filter(l => getLeadEmail(l) && !isGenericMailbox(getLeadEmail(l))).length],
+    ["Generische Mailbox, trotzdem nutzbar", leads.filter(l => getLeadEmail(l) && isGenericMailbox(getLeadEmail(l))).length],
+    ["Video geöffnet", leads.filter(l => Number(l.pitchlane_video_view_count || 0) > 0).length],
+    ["Video vollständig gesehen", leads.filter(l => Number(l.pitchlane_video_finish_count || 0) > 0).length],
+    ["Antwort erhalten", leads.filter(l => getLeadDisplayStatus(l) === "replied").length],
+    ["Kein Interesse", leads.filter(l => String(l.crm_status || l.status || "").toLowerCase() === "no_interest").length]
+  ];
+  signals.innerHTML = signalRows.map(([label, count]) => `
+    <div class="k1-insight-row">
+      <div><strong>${esc(label)}</strong><p>${Math.round((count / Math.max(leads.length, 1)) * 100)}% der Leads</p></div>
+      <div class="metric">${count}</div>
+    </div>
+  `).join("");
+}
+
+function renderK1PersonalizationPanel(lead) {
+  const panel = document.getElementById("k1PersonalizationPanel");
+  const target = document.getElementById("k1PersonalizationQuality");
+  if (!panel || !target) return;
+  const show = isKopietzCompany();
+  panel.classList.toggle("hidden", !show);
+  if (!show || !lead) return;
+
+  const quality = getK1LeadQuality(lead);
+  const confidence = String(lead.personalization_confidence || lead.ai_analysis_status || "").toLowerCase();
+  const sources = [];
+  if (lead.website || lead.website_url) sources.push("Website");
+  if (lead.imprint_url || lead.impressum_source_url) sources.push("Impressum");
+  if (lead.industry) sources.push("Branche");
+  if (lead.city || lead.region) sources.push("Region");
+  if (lead.imprint_meta_title || lead.imprint_meta_description) sources.push("Meta-Daten");
+  if (lead.audit_summary || lead.notes) sources.push("HubSpot-Kontext");
+
+  const emailLabel = !quality.email
+    ? "Keine E-Mail"
+    : quality.hasPersonalEmail
+      ? "Persönliche E-Mail"
+      : "Generische E-Mail";
+  const confidenceLabel = confidence === "high" ? "hoch" : confidence === "medium" ? "mittel" : confidence === "low" ? "niedrig" : "nicht bewertet";
+
+  target.innerHTML = `
+    <div class="k1-quality-score">
+      <div>
+        <span class="k1-insight-label">Personalisierungsqualität</span>
+        <strong>${quality.score}% · ${esc(confidenceLabel)}</strong>
+        <p class="k1-insight-sub">${esc(emailLabel)} · ${sources.length} belegbare Quellen</p>
+      </div>
+      <div class="metric">${quality.hasPersonalEmail ? "Entscheider-Mail möglich" : "Automatischer Versand ok"}</div>
+    </div>
+    <div class="k1-quality-tags">
+      ${sources.map(source => `<span class="k1-quality-tag">${esc(source)}</span>`).join("") || '<span class="k1-quality-tag">Keine Quellen</span>'}
+      ${quality.issues.slice(0, 5).map(issue => `<span class="k1-quality-tag">${esc(issue)}</span>`).join("")}
+    </div>
+  `;
+}
+
+let k1SelectedCsvFile = null;
+
+async function importK1CsvContacts() {
+  if (!isKopietzCompany()) return;
+  const file = k1SelectedCsvFile || document.getElementById("k1CsvFileInput")?.files?.[0];
+  const statusEl = document.getElementById("k1UploadStatus");
+  const button = document.getElementById("k1ImportCsvBtn");
+  if (!file) {
+    showToast("Bitte zuerst eine CSV-Datei auswählen.", "error");
+    return;
+  }
+  if (button) button.disabled = true;
+  if (statusEl) statusEl.textContent = "Datei wird gelesen und importiert...";
+  try {
+    const csv = await file.text();
+    const result = await apiRequest("/contacts/import", {
+      method: "POST",
+      body: JSON.stringify({
+        filename: file.name,
+        csv
+      })
+    });
+    const inserted = Number(result.inserted || 0);
+    const updated = Number(result.updated || 0);
+    const valid = Number(result.valid_contacts || result.valid_count || 0);
+    if (statusEl) statusEl.textContent = `Import abgeschlossen: ${inserted} neu, ${updated} aktualisiert, ${valid} gültig.`;
+    showToast("CSV-Kontakte wurden importiert.", "success");
+    addActivity("CSV importiert", `${inserted} neue und ${updated} aktualisierte Kontakte für Company 1.`);
+    await Promise.all([loadStats(), loadLeads()]);
+  } catch (error) {
+    if (statusEl) statusEl.textContent = `Import fehlgeschlagen: ${error.message}`;
+    showToast(`CSV-Import fehlgeschlagen: ${error.message}`, "error");
+  } finally {
+    if (button) button.disabled = !k1SelectedCsvFile;
+  }
+}
+
+function syncK1UploadUi() {
+  const show = isKopietzCompany();
+  document.querySelectorAll(".k1-only").forEach(el => el.classList.toggle("hidden", !show));
+  const card = document.getElementById("k1UploadCard");
+  if (card) card.classList.toggle("hidden", !show);
+}
+
 async function startSelectedAnalysis() {
   if (!selectedAnalysisLeadIds.length) return;
 
@@ -1533,7 +1856,10 @@ async function startSelectedAnalysis() {
       method: "POST",
       body: JSON.stringify({
         lead_ids: selectedAnalysisLeadIds,
-        requested_by: currentUser?.email || null
+        requested_by: currentUser?.email || null,
+        campaign_name: isKopietzCompany() ? (document.getElementById("k1CampaignNameInput")?.value || "").trim() : null,
+        campaign_segment: isKopietzCompany() ? (document.getElementById("k1CampaignSegmentInput")?.value || "").trim() : null,
+        campaign_offer: isKopietzCompany() ? (document.getElementById("k1CampaignOfferInput")?.value || "").trim() : null
       })
     });
 
@@ -1553,6 +1879,7 @@ async function startSelectedAnalysis() {
   } finally {
     isStartingSelectedAnalysis = false;
     renderSelectedAnalysisToolbar();
+    renderK1CampaignCockpit();
   }
 }
 
@@ -1825,9 +2152,11 @@ async function dropLeadToPipeline(event, status) {
 
   try {
     const manualStatuses = ["analyzed", "meeting", "won", "lost", "existing_customer", "no_interest"];
-    const update = manualStatuses.includes(status)
-      ? { crm_status: status }
-      : { status };
+    const update = status === "no_interest"
+      ? { crm_status: "no_interest", status: "no_interest" }
+      : manualStatuses.includes(status)
+        ? { crm_status: status }
+        : { status };
     const savedLead = await apiRequest(`/leads/${leadId}`, {
       method: "PATCH",
       body: JSON.stringify(update)
@@ -2316,7 +2645,7 @@ function renderDrawer(leadId) {
   if (callNotes) callNotes.value = lead.call_notes || "";
 
   const disqualifyState = document.getElementById("disqualifyState");
-  if (disqualifyState && isViralityFilmsCompany()) {
+  if (disqualifyState && (isKopietzCompany() || isViralityFilmsCompany())) {
     if (lead.status === "no_interest") {
       disqualifyState.classList.remove("hidden");
     } else {
@@ -2331,14 +2660,22 @@ function renderDrawer(leadId) {
   }
 
   // VF-spezifische UI-Elemente ein/ausblenden
-  const isVFCompany = isViralityFilmsCompany();
+  const isVFCompany = isKopietzCompany() || isViralityFilmsCompany();
 
   // Telefonische Freigabe Box
   const vfSection = document.getElementById("vfCallApprovalSection");
   if (vfSection) vfSection.classList.toggle("hidden", !isVFCompany);
   syncCompany3ResendButton(lead);
 
-  // Editierbare Felder (VF) vs. readonly Spans (andere)
+  const callApprovedLabel = document.getElementById("callApprovedLabel");
+  const k1CallApprovalHint = document.getElementById("k1CallApprovalHint");
+  if (callApprovedLabel) callApprovedLabel.classList.toggle("hidden", isKopietzCompany());
+  if (k1CallApprovalHint) k1CallApprovalHint.classList.toggle("hidden", !isKopietzCompany());
+  if (callApprovalState && isKopietzCompany()) {
+    callApprovalState.textContent = lead.call_notes ? "Dokumentiert" : "Optional";
+  }
+
+  // Editierbare Felder (VF/K1) vs. readonly Spans (andere)
   document.querySelectorAll(".vf-show").forEach(el => el.classList.toggle("hidden", !isVFCompany));
   document.querySelectorAll(".vf-hide").forEach(el => el.classList.toggle("hidden", isVFCompany));
 
@@ -2436,6 +2773,7 @@ function renderDrawer(leadId) {
   }
 
   setText("dMarketingAnalysis", lead.marketing_analysis || "Noch keine Analyse vorhanden.");
+  renderK1PersonalizationPanel(lead);
 
   // CRM Tab
   configureCrmStatusOptions(lead);
@@ -2668,7 +3006,21 @@ function bindEvents() {
   // Selected analysis
   document.getElementById("selectAllLeadsCheckbox")?.addEventListener("change", toggleAllVisibleAnalysisLeads);
   document.getElementById("startSelectedAnalysisBtn")?.addEventListener("click", startSelectedAnalysis);
-  document.getElementById("clearSelectedAnalysisBtn")?.addEventListener("click", () => { selectedAnalysisLeadIds = []; renderLeadTable(); });
+  document.getElementById("k1StartCampaignBtn")?.addEventListener("click", startSelectedAnalysis);
+  document.getElementById("clearSelectedAnalysisBtn")?.addEventListener("click", () => { selectedAnalysisLeadIds = []; renderLeadTable(); renderK1CampaignCockpit(); });
+  document.getElementById("k1ChooseCsvBtn")?.addEventListener("click", () => document.getElementById("k1CsvFileInput")?.click());
+  document.getElementById("k1CsvFileInput")?.addEventListener("change", event => {
+    k1SelectedCsvFile = event.target.files?.[0] || null;
+    const nameEl = document.getElementById("k1UploadFileName");
+    const metaEl = document.getElementById("k1UploadMeta");
+    const statusEl = document.getElementById("k1UploadStatus");
+    const importBtn = document.getElementById("k1ImportCsvBtn");
+    if (nameEl) nameEl.textContent = k1SelectedCsvFile ? k1SelectedCsvFile.name : "CSV-Datei auswählen";
+    if (metaEl) metaEl.textContent = k1SelectedCsvFile ? `${Math.round(k1SelectedCsvFile.size / 1024)} KB bereit zum Import.` : "Unterstützt HubSpot-Export mit Kontakten, Firmen, Website, Branche und Status.";
+    if (statusEl) statusEl.textContent = k1SelectedCsvFile ? "Bereit zum Import." : "Noch keine Datei ausgewählt.";
+    if (importBtn) importBtn.disabled = !k1SelectedCsvFile;
+  });
+  document.getElementById("k1ImportCsvBtn")?.addEventListener("click", importK1CsvContacts);
 
   // Quick filters
   document.querySelectorAll(".qf-btn").forEach(btn => {
@@ -2737,7 +3089,9 @@ function switchView(view) {
 
   const titles = {
     dashboard: "Dashboard", opportunities: "Chancen",
-    pipeline: "Pipeline", scans: "Scans", reports: "Reports"
+    pipeline: "Pipeline", dataQuality: "Datenqualität",
+    campaigns: "Kampagnen", icp: "ICP Lernen",
+    scans: "Scans", reports: "Reports"
   };
   setText("topbarTitle", titles[view] || "Dashboard");
 }
