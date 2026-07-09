@@ -716,7 +716,7 @@ async function sendToOutreach(leadId) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// COMPANY 3: E-MAIL ERNEUT ÜBER INSTANTLY SENDEN
+// E-MAIL ERNEUT ÜBER INSTANTLY SENDEN
 // ─────────────────────────────────────────────────────────────
 function canResendCompany3Email(lead) {
   if (!(isKopietzCompany() || isViralityFilmsCompany()) || !lead) return false;
@@ -760,7 +760,7 @@ function syncCompany3ResendButton(lead) {
     button.className = "btn btn-ghost";
     button.style.cssText = "padding:9px 14px;font-size:13px;border:1px solid var(--border);";
     button.textContent = "E-Mail erneut senden";
-    button.title = "Sendet ausschließlich die vorhandene E-Mail erneut über Instantly";
+    button.title = "Sendet die E-Mail mit den aktuell gespeicherten Kontaktdaten erneut über Instantly";
     button.addEventListener("click", () => {
       if (selectedLeadId) resendCompany3Email(selectedLeadId);
     });
@@ -781,7 +781,20 @@ async function resendCompany3Email(leadId) {
     return;
   }
 
-  const email = getLeadEmail(lead);
+  const formLeadName = document.getElementById("callCompanyName")?.value.trim() || "";
+  const formContactPerson = document.getElementById("callContactPerson")?.value.trim() || "";
+  const formEmail = document.getElementById("callEmail")?.value.trim() || "";
+  const formPhone = document.getElementById("callPhone")?.value.trim() || "";
+  const email = formEmail || getLeadEmail(lead);
+  const contactPerson = formContactPerson || lead.contact_person || lead.managing_director || "";
+  const leadName = formLeadName || lead.lead_name || lead.company_name || "";
+  const phone = formPhone || lead.phone || "";
+
+  if (!email) {
+    showToast("Bitte zuerst eine E-Mail-Adresse speichern oder eintragen.", "error");
+    return;
+  }
+
   if (!confirm(`Die E-Mail an ${email} wirklich erneut über Instantly senden?`)) return;
 
   const button = document.getElementById("resendInstantlyEmailBtn");
@@ -793,15 +806,32 @@ async function resendCompany3Email(leadId) {
   try {
     const result = await apiRequest("/instantly/resend", {
       method: "POST",
-      body: JSON.stringify({ lead_id: Number(leadId) })
+      body: JSON.stringify({
+        lead_id: Number(leadId),
+        lead_name: leadName,
+        contact_person: contactPerson,
+        email,
+        phone
+      })
     });
 
     const requestedAt = result?.requested_at || new Date().toISOString();
-    lead.updated_at = requestedAt;
+    Object.assign(lead, {
+      updated_at: requestedAt,
+      instantly_lead_id: result?.instantly_lead_id || lead.instantly_lead_id,
+      instantly_campaign_id: result?.instantly_campaign_id || lead.instantly_campaign_id,
+      email: result?.email || email,
+      final_email: result?.email || lead.final_email || email,
+      final_email_type: result?.email ? "manual" : lead.final_email_type,
+      contact_person: result?.contact_person || contactPerson,
+      managing_director: result?.contact_person || contactPerson || lead.managing_director,
+      phone: result?.phone || phone
+    });
+
     addTimelineEntry(
       Number(leadId),
       "E-Mail erneut angefordert",
-      `Wiederholungsversand an ${email} wurde bei Instantly angefordert.`
+      `Wiederholungsversand an ${lead.contact_person ? `${lead.contact_person} <${lead.email}>` : lead.email} wurde bei Instantly angefordert.`
     );
 
     const actionOutput = document.getElementById("actionOutput");
@@ -811,7 +841,9 @@ async function resendCompany3Email(leadId) {
       actionOutput.classList.remove("hidden");
     }
 
-    showToast("Erneuter E-Mail-Versand wurde angefordert.", "success");
+    renderDrawer(leadId);
+    renderLeadTable();
+    showToast("Erneuter E-Mail-Versand wurde mit aktuellen Kontaktdaten angefordert.", "success");
   } catch (error) {
     showToast(`Wiederholungsversand fehlgeschlagen: ${error.message}`, "error");
   } finally {
