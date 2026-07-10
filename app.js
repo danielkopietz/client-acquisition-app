@@ -53,6 +53,19 @@ function usesSharedSalesCrm() {
   return isKopietzCompany() || isViralityFilmsCompany() || isCompany4RecruitingCompany() || isRC360Company();
 }
 
+const K1_PIPELINE_CRM_STATUSES = [
+  "analyzed",
+  "email_sent",
+  "email_opened",
+  "bounced",
+  "video_opened",
+  "meeting",
+  "won",
+  "existing_customer",
+  "no_interest",
+  "lost"
+];
+
 function getSelectedAnalysisPolicy() {
   if (isKopietzCompany()) {
     return {
@@ -159,7 +172,10 @@ function getLeadDisplayStatus(lead) {
   const crmStatus = String(lead.crm_status || "").toLowerCase();
   if (
     usesSharedSalesCrm() &&
-    ["follow_up", "meeting", "won", "lost", "existing_customer", "no_interest"].includes(crmStatus)
+    (isKopietzCompany()
+      ? K1_PIPELINE_CRM_STATUSES
+      : ["follow_up", "meeting", "won", "lost", "existing_customer", "no_interest"]
+    ).includes(crmStatus)
   ) return crmStatus;
 
   const outreachStatus = lead.outreach_status || "";
@@ -186,6 +202,7 @@ function getLeadPipelineStatus(lead) {
     const crmStatus = String(lead?.crm_status || "").toLowerCase();
     const outreachStatus = String(lead?.outreach_status || "").toLowerCase();
 
+    if (isKopietzCompany() && K1_PIPELINE_CRM_STATUSES.includes(crmStatus)) return crmStatus;
     if (crmStatus === "analyzed") return "analyzed";
     if (crmStatus === "no_interest") return "no_interest";
     if (["lost", "disqualified"].includes(crmStatus || status)) return "lost";
@@ -1003,6 +1020,19 @@ const VF_CRM_STATUS_OPTIONS = [
   ["no_interest", "Kein Interesse"]
 ];
 
+const K1_CRM_STATUS_OPTIONS = [
+  ["analyzed", "Analysiert"],
+  ["email_sent", "Mail gesendet"],
+  ["email_opened", "Mail geöffnet"],
+  ["bounced", "Bounce"],
+  ["video_opened", "Video geöffnet"],
+  ["meeting", "Termin gebucht"],
+  ["won", "Gewonnen"],
+  ["existing_customer", "Bereits Kunde"],
+  ["no_interest", "Kein Interesse"],
+  ["lost", "Verloren"]
+];
+
 const DEFAULT_CRM_STATUS_OPTIONS = [
   ["new", "Neu"],
   ["qualified", "Qualifiziert"],
@@ -1024,6 +1054,17 @@ function normalizeViralityCrmStatus(status) {
   return "analyzed";
 }
 
+function normalizeK1CrmStatus(status) {
+  const value = String(status || "").toLowerCase();
+  if (K1_PIPELINE_CRM_STATUSES.includes(value)) return value;
+  if (["follow_up", "ready", "enriched", "contact_confirmed", "ready_for_analysis"].includes(value)) return "analyzed";
+  if (["sent", "active", "outreach_active"].includes(value)) return "email_sent";
+  if (["email_clicked", "replied"].includes(value)) return "email_opened";
+  if (["disqualified"].includes(value)) return "lost";
+  if (["customer"].includes(value)) return "existing_customer";
+  return "analyzed";
+}
+
 function toDatetimeLocalValue(value) {
   if (!value) return "";
   const date = new Date(value);
@@ -1035,13 +1076,31 @@ function toDatetimeLocalValue(value) {
 function configureCrmStatusOptions(lead) {
   const select = document.getElementById("crmStatus");
   if (!select) return;
-  const options = usesSharedSalesCrm() ? VF_CRM_STATUS_OPTIONS : DEFAULT_CRM_STATUS_OPTIONS;
+  const options = isKopietzCompany()
+    ? K1_CRM_STATUS_OPTIONS
+    : usesSharedSalesCrm()
+      ? VF_CRM_STATUS_OPTIONS
+      : DEFAULT_CRM_STATUS_OPTIONS;
   select.innerHTML = options
     .map(([value, label]) => `<option value="${value}">${esc(label)}</option>`)
     .join("");
-  select.value = usesSharedSalesCrm()
-    ? normalizeViralityCrmStatus(lead?.crm_status || lead?.status)
+  select.value = isKopietzCompany()
+    ? normalizeK1CrmStatus(getLeadPipelineStatus(lead))
+    : usesSharedSalesCrm()
+      ? normalizeViralityCrmStatus(lead?.crm_status || lead?.status)
     : (lead?.status || "new");
+}
+
+function renderAfterLeadMutation(leadId) {
+  renderStatsFromLeads();
+  renderTopLeads();
+  renderLeadTable();
+  renderPipeline();
+  renderReports();
+  renderK1DataQuality();
+  renderK1CampaignCockpit();
+  renderK1IcpLearning();
+  if (selectedLeadId && Number(selectedLeadId) === Number(leadId)) renderDrawer(leadId);
 }
 
 async function saveCrmData(leadId) {
@@ -1075,7 +1134,7 @@ async function saveCrmData(leadId) {
     // Timeline-Eintrag
     addTimelineEntry(leadId, "CRM gespeichert", `Status: ${updates.crm_status || updates.status}`);
     showToast("Gespeichert!");
-    renderLeadTable();
+    renderAfterLeadMutation(leadId);
   } catch (err) {
     showToast(`Speichern fehlgeschlagen: ${err.message}`, "error");
   }
@@ -2195,8 +2254,119 @@ async function checkDueCrmReminders() {
   }
 }
 
+function ensureK1ReminderToastStyles() {
+  if (document.getElementById("k1ReminderToastStyles")) return;
+  const style = document.createElement("style");
+  style.id = "k1ReminderToastStyles";
+  style.textContent = `
+    .k1-crm-reminder-toast {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      z-index: 10020;
+      width: min(420px, calc(100vw - 32px));
+      padding: 18px;
+      border: 1px solid rgba(255, 74, 23, 0.22);
+      border-radius: 18px;
+      background: rgba(255, 252, 249, 0.96);
+      box-shadow: 0 24px 70px rgba(24, 16, 12, 0.22);
+      backdrop-filter: blur(14px);
+      color: var(--text, #181818);
+    }
+    .k1-crm-reminder-toast.hidden { display: none; }
+    .k1-crm-reminder-toast .eyebrow {
+      margin: 0 0 8px;
+      color: var(--primary, #ff4a17);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .k1-crm-reminder-toast h3 {
+      margin: 0 0 8px;
+      font-size: 22px;
+      line-height: 1.15;
+    }
+    .k1-crm-reminder-toast p {
+      margin: 0 0 8px;
+      color: var(--muted, #625f5b);
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    .k1-crm-reminder-toast .time {
+      color: var(--primary, #ff4a17);
+      font-weight: 800;
+    }
+    .k1-crm-reminder-toast .actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+    .k1-crm-reminder-toast button {
+      min-height: 38px;
+      border-radius: 10px;
+      border: 1px solid rgba(32, 24, 20, 0.12);
+      background: #fff;
+      padding: 0 14px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .k1-crm-reminder-toast button.primary {
+      border-color: var(--primary, #ff4a17);
+      background: var(--primary, #ff4a17);
+      color: #fff;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+function ensureK1ReminderToast() {
+  ensureK1ReminderToastStyles();
+  let toast = document.getElementById("k1CrmReminderToast");
+  if (toast) return toast;
+  toast = document.createElement("div");
+  toast.id = "k1CrmReminderToast";
+  toast.className = "k1-crm-reminder-toast hidden";
+  toast.innerHTML = `
+    <div class="eyebrow">CRM Erinnerung</div>
+    <h3>Follow-up ist fällig</h3>
+    <p class="company"></p>
+    <p class="step"></p>
+    <p class="time"></p>
+    <div class="actions">
+      <button type="button" data-action="snooze">In 15 Min.</button>
+      <button type="button" data-action="done">Erledigt</button>
+      <button type="button" class="primary" data-action="open">Lead öffnen</button>
+    </div>
+  `;
+  toast.querySelectorAll("button[data-action]").forEach(button => {
+    button.addEventListener("click", () => handleCrmReminder(button.dataset.action));
+  });
+  document.body.appendChild(toast);
+  return toast;
+}
+
+function showK1CrmReminderToast(reminder) {
+  const toast = ensureK1ReminderToast();
+  toast.querySelector(".company").textContent = reminder.lead_name || "Unbekannter Lead";
+  toast.querySelector(".step").textContent = reminder.next_step || "Follow-up durchführen";
+  toast.querySelector(".time").textContent = new Date(reminder.follow_up).toLocaleString("de-DE");
+  toast.classList.remove("hidden");
+}
+
+function hideK1CrmReminderToast() {
+  document.getElementById("k1CrmReminderToast")?.classList.add("hidden");
+}
+
 function showCrmReminder(reminder) {
   activeCrmReminder = reminder;
+  if (isKopietzCompany()) {
+    document.getElementById("crmReminderModal")?.classList.add("hidden");
+    showK1CrmReminderToast(reminder);
+    return;
+  }
   document.getElementById("crmReminderCompany").textContent = reminder.lead_name || "Unbekannter Lead";
   document.getElementById("crmReminderStep").textContent =
     reminder.next_step || "Follow-up durchführen";
@@ -2213,7 +2383,8 @@ async function handleCrmReminder(action) {
       method: "POST",
       body: JSON.stringify({ action })
     });
-    document.getElementById("crmReminderModal").classList.add("hidden");
+    document.getElementById("crmReminderModal")?.classList.add("hidden");
+    hideK1CrmReminderToast();
     activeCrmReminder = null;
     if (action === "open") openDrawer(reminder.id);
     window.setTimeout(checkDueCrmReminders, 500);
@@ -2252,9 +2423,12 @@ async function dropLeadToPipeline(event, status) {
 
   try {
     const manualStatuses = ["analyzed", "meeting", "won", "lost", "existing_customer", "no_interest"];
+    const crmPipelineStatuses = isKopietzCompany()
+      ? K1_PIPELINE_CRM_STATUSES
+      : manualStatuses;
     const update = status === "no_interest"
       ? { crm_status: "no_interest", status: "no_interest" }
-      : manualStatuses.includes(status)
+      : crmPipelineStatuses.includes(status)
         ? { crm_status: status }
         : { status };
     const savedLead = await apiRequest(`/leads/${leadId}`, {
@@ -2262,8 +2436,7 @@ async function dropLeadToPipeline(event, status) {
       body: JSON.stringify(update)
     });
     Object.assign(lead, update, savedLead);
-    renderPipeline();
-    renderLeadTable();
+    renderAfterLeadMutation(leadId);
     addTimelineEntry(leadId, "Pipeline aktualisiert", `Status: ${formatStatusLabel(status)}`);
     showToast(`Verschoben nach „${formatStatusLabel(status)}“.`, "success");
   } catch (err) {
