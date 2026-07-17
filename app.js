@@ -45,6 +45,10 @@ function isRC360Company() {
   return getCurrentCompanyId() === COMPANY_IDS.RC360;
 }
 
+function usesCompany1Crm() {
+  return isKopietzCompany() || isRC360Company();
+}
+
 function usesAdvancedManufacturingScan() {
   return isViralityFilmsCompany() || isRC360Company();
 }
@@ -145,7 +149,7 @@ function getLeadEmail(lead) {
 
   // Company 3 bearbeitet Kontaktdaten manuell im Dashboard.
   // Deshalb hat die manuelle E-Mail Vorrang vor automatisch gefundenen E-Mail-Feldern.
-  if (isKopietzCompany() || isViralityFilmsCompany()) {
+  if (usesCompany1Crm() || isViralityFilmsCompany()) {
     return lead.email || lead.final_email || lead.findymail_email || "";
   }
 
@@ -172,7 +176,7 @@ function getLeadDisplayStatus(lead) {
   const crmStatus = String(lead.crm_status || "").toLowerCase();
   if (
     usesSharedSalesCrm() &&
-    (isKopietzCompany()
+    (usesCompany1Crm()
       ? K1_PIPELINE_CRM_STATUSES
       : ["follow_up", "meeting", "won", "lost", "existing_customer", "no_interest"]
     ).includes(crmStatus)
@@ -202,7 +206,7 @@ function getLeadPipelineStatus(lead) {
     const crmStatus = String(lead?.crm_status || "").toLowerCase();
     const outreachStatus = String(lead?.outreach_status || "").toLowerCase();
 
-    if (isKopietzCompany() && K1_PIPELINE_CRM_STATUSES.includes(crmStatus)) return crmStatus;
+    if (usesCompany1Crm() && K1_PIPELINE_CRM_STATUSES.includes(crmStatus)) return crmStatus;
     if (crmStatus === "analyzed") return "analyzed";
     if (crmStatus === "no_interest") return "no_interest";
     if (["lost", "disqualified"].includes(crmStatus || status)) return "lost";
@@ -736,7 +740,7 @@ async function sendToOutreach(leadId) {
 // E-MAIL ERNEUT ÜBER INSTANTLY SENDEN
 // ─────────────────────────────────────────────────────────────
 function canResendCompany3Email(lead) {
-  if (!(isKopietzCompany() || isViralityFilmsCompany()) || !lead) return false;
+  if (!(usesCompany1Crm() || isViralityFilmsCompany()) || !lead) return false;
   if (isViralityFilmsCompany() && lead.call_approved !== true) return false;
   if (!getLeadEmail(lead)) return false;
 
@@ -762,7 +766,7 @@ function canResendCompany3Email(lead) {
 function syncCompany3ResendButton(lead) {
   let button = document.getElementById("resendInstantlyEmailBtn");
 
-  if (!(isKopietzCompany() || isViralityFilmsCompany())) {
+  if (!(usesCompany1Crm() || isViralityFilmsCompany())) {
     button?.remove();
     return;
   }
@@ -790,7 +794,7 @@ function syncCompany3ResendButton(lead) {
 }
 
 async function resendCompany3Email(leadId) {
-  if (!(isKopietzCompany() || isViralityFilmsCompany())) return;
+  if (!(usesCompany1Crm() || isViralityFilmsCompany())) return;
 
   const lead = leads.find(item => Number(item.id) === Number(leadId));
   if (!lead || !canResendCompany3Email(lead)) {
@@ -876,7 +880,7 @@ async function resendCompany3Email(leadId) {
 // TELEFONISCHE KONTAKTFREIGABE SPEICHERN
 // ─────────────────────────────────────────────────────────────
 async function disqualifyLead(leadId) {
-  if (!(isKopietzCompany() || isViralityFilmsCompany())) return;
+  if (!(usesCompany1Crm() || isViralityFilmsCompany())) return;
   if (!confirm("Lead als 'Kein Interesse' markieren? Diese Aktion kann nicht rückgängig gemacht werden.")) return;
   try {
     const updatedLead = await apiRequest(`/leads/${leadId}`, {
@@ -953,7 +957,7 @@ async function saveCallApproval(leadId) {
     // Sonst überschreibt renderDrawer die Felder mit alten Werten
     const index = leads.findIndex(l => Number(l.id) === Number(leadId));
     if (index >= 0) {
-      const manualEmailUpdate = (isKopietzCompany() || isViralityFilmsCompany())
+      const manualEmailUpdate = (usesCompany1Crm() || isViralityFilmsCompany())
         ? {
             final_email: email || updatedLead?.final_email || "",
             final_email_type: email ? "manual" : (updatedLead?.final_email_type || null)
@@ -1076,7 +1080,7 @@ function toDatetimeLocalValue(value) {
 function configureCrmStatusOptions(lead) {
   const select = document.getElementById("crmStatus");
   if (!select) return;
-  const options = isKopietzCompany()
+  const options = usesCompany1Crm()
     ? K1_CRM_STATUS_OPTIONS
     : usesSharedSalesCrm()
       ? VF_CRM_STATUS_OPTIONS
@@ -1084,7 +1088,7 @@ function configureCrmStatusOptions(lead) {
   select.innerHTML = options
     .map(([value, label]) => `<option value="${value}">${esc(label)}</option>`)
     .join("");
-  select.value = isKopietzCompany()
+  select.value = usesCompany1Crm()
     ? normalizeK1CrmStatus(getLeadPipelineStatus(lead))
     : usesSharedSalesCrm()
       ? normalizeViralityCrmStatus(lead?.crm_status || lead?.status)
@@ -1238,6 +1242,13 @@ function setButtonText(selector, text) {
 }
 
 function applyTenantCopy() {
+  if (isRC360Company()) {
+    document.querySelectorAll(".leads-table thead th").forEach(header => {
+      const label = String(header.textContent || "").trim().toLowerCase();
+      if (["website", "instagram", "meta ads"].includes(label)) header.style.display = "none";
+    });
+  }
+
   if (!isCompany4RecruitingCompany()) return;
 
   setText("topbarEyebrow", "RECRUITING OUTREACH OS");
@@ -2048,7 +2059,8 @@ function renderLeadTable() {
   renderSelectedAnalysisToolbar();
 
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="${selectionEnabled ? 10 : 9}" class="empty-row">Keine Leads gefunden.</td></tr>`;
+    const visibleColumns = isRC360Company() ? (selectionEnabled ? 7 : 6) : (selectionEnabled ? 10 : 9);
+    tbody.innerHTML = `<tr><td colspan="${visibleColumns}" class="empty-row">Keine Leads gefunden.</td></tr>`;
     return;
   }
 
@@ -2089,9 +2101,10 @@ function renderLeadTable() {
           <div class="td-contact">${esc(contact)}</div>
           <div class="td-email">${email ? `<a href="mailto:${esc(email)}" onclick="event.stopPropagation()">${esc(email)}</a>` : "–"}</div>
         </td>
+        ${isRC360Company() ? "" : `
         <td>${scoreCell(l.website_score || l.pagespeed_score || 0, "")}</td>
         <td>${l.instagram_found ? `${l.instagram_followers || 0} Follower` : '<span style="color:var(--muted)">–</span>'}</td>
-        <td><span class="ads-badge ${l.ads_found ? "has-ads" : "no-ads"}">${l.ads_found ? "Aktiv" : "Keine Ads"}</span></td>
+        <td><span class="ads-badge ${l.ads_found ? "has-ads" : "no-ads"}">${l.ads_found ? "Aktiv" : "Keine Ads"}</span></td>`}
         <td>${scoreCell(score, scoreColor)}</td>
         <td>${statusBadge(getLeadDisplayStatus(l))}</td>
         <td>${priorityBadge(l.priority)}</td>
@@ -2423,7 +2436,7 @@ async function dropLeadToPipeline(event, status) {
 
   try {
     const manualStatuses = ["analyzed", "meeting", "won", "lost", "existing_customer", "no_interest"];
-    const crmPipelineStatuses = isKopietzCompany()
+    const crmPipelineStatuses = usesCompany1Crm()
       ? K1_PIPELINE_CRM_STATUSES
       : manualStatuses;
     const update = status === "no_interest"
@@ -2920,7 +2933,7 @@ function renderDrawer(leadId) {
   if (callNotes) callNotes.value = lead.call_notes || "";
 
   const disqualifyState = document.getElementById("disqualifyState");
-  if (disqualifyState && (isKopietzCompany() || isViralityFilmsCompany())) {
+  if (disqualifyState && (usesCompany1Crm() || isViralityFilmsCompany())) {
     if (lead.status === "no_interest") {
       disqualifyState.classList.remove("hidden");
     } else {
@@ -2935,7 +2948,7 @@ function renderDrawer(leadId) {
   }
 
   // VF-spezifische UI-Elemente ein/ausblenden
-  const isVFCompany = isKopietzCompany() || isViralityFilmsCompany();
+  const isVFCompany = usesCompany1Crm() || isViralityFilmsCompany();
 
   // Telefonische Freigabe Box
   const vfSection = document.getElementById("vfCallApprovalSection");
@@ -2944,9 +2957,9 @@ function renderDrawer(leadId) {
 
   const callApprovedLabel = document.getElementById("callApprovedLabel");
   const k1CallApprovalHint = document.getElementById("k1CallApprovalHint");
-  if (callApprovedLabel) callApprovedLabel.classList.toggle("hidden", isKopietzCompany());
-  if (k1CallApprovalHint) k1CallApprovalHint.classList.toggle("hidden", !isKopietzCompany());
-  if (callApprovalState && isKopietzCompany()) {
+  if (callApprovedLabel) callApprovedLabel.classList.toggle("hidden", usesCompany1Crm());
+  if (k1CallApprovalHint) k1CallApprovalHint.classList.toggle("hidden", !usesCompany1Crm());
+  if (callApprovalState && usesCompany1Crm()) {
     callApprovalState.textContent = lead.call_notes ? "Dokumentiert" : "Optional";
   }
 
