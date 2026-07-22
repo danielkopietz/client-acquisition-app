@@ -875,6 +875,160 @@ async function resendCompany3Email(leadId) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// RC360 / COMPANY 6 – DIALFIRE CALL VORBEREITEN
+// ─────────────────────────────────────────────────────────────
+function syncDialfireCallButton(lead) {
+  let button = document.getElementById("dialfireCallBtn");
+  let recordingLink = document.getElementById("dialfireRecordingLink");
+
+  if (!isRC360Company()) {
+    button?.remove();
+    recordingLink?.remove();
+    return;
+  }
+
+  const actionContainer = document.getElementById("saveCallApprovalBtn")?.parentElement;
+  if (!actionContainer) return;
+
+  if (!button) {
+    button = document.createElement("button");
+    button.id = "dialfireCallBtn";
+    button.type = "button";
+    button.className = "btn btn-primary";
+    button.style.cssText = "padding:9px 14px;font-size:13px;";
+    button.addEventListener("click", () => {
+      if (selectedLeadId) startDialfireCall(selectedLeadId);
+    });
+    actionContainer.prepend(button);
+  }
+
+  const phoneInput = document.getElementById("callPhone");
+  if (phoneInput && phoneInput.dataset.dialfireInputBound !== "true") {
+    phoneInput.dataset.dialfireInputBound = "true";
+    phoneInput.addEventListener("input", () => {
+      const activeLead = leads.find(item => Number(item.id) === Number(selectedLeadId));
+      syncDialfireCallButton(activeLead || lead);
+    });
+  }
+
+  const currentPhone = phoneInput?.value.trim() || lead?.phone || "";
+  button.disabled = !currentPhone;
+  button.textContent = currentPhone ? "Mit Dialfire anrufen" : "Keine Telefonnummer";
+  button.title = currentPhone
+    ? "Kontakt an Dialfire übergeben und Dialfire öffnen"
+    : "Bitte zuerst eine Telefonnummer eintragen";
+
+  const recordingUrl = String(lead?.dialfire_recording_url || "").trim();
+  if (recordingUrl) {
+    if (!recordingLink) {
+      recordingLink = document.createElement("a");
+      recordingLink.id = "dialfireRecordingLink";
+      recordingLink.className = "btn btn-ghost";
+      recordingLink.style.cssText = "padding:9px 14px;font-size:13px;border:1px solid var(--border);";
+      recordingLink.target = "_blank";
+      recordingLink.rel = "noopener noreferrer";
+      recordingLink.textContent = "Aufzeichnung öffnen";
+      actionContainer.appendChild(recordingLink);
+    }
+    recordingLink.href = recordingUrl;
+    recordingLink.classList.remove("hidden");
+  } else {
+    recordingLink?.remove();
+  }
+}
+
+async function startDialfireCall(leadId) {
+  if (!isRC360Company()) return;
+
+  const lead = leads.find(item => Number(item.id) === Number(leadId));
+  if (!lead) return;
+
+  const leadName = document.getElementById("callCompanyName")?.value.trim() || lead.lead_name || "";
+  const contactPerson = document.getElementById("callContactPerson")?.value.trim() || lead.contact_person || "";
+  const email = document.getElementById("callEmail")?.value.trim() || getLeadEmail(lead);
+  const phone = document.getElementById("callPhone")?.value.trim() || lead.phone || "";
+  const callNotes = document.getElementById("callNotes")?.value.trim() || lead.call_notes || "";
+
+  if (!phone) {
+    showToast("Bitte zuerst eine Telefonnummer eintragen.", "error");
+    return;
+  }
+
+  // Das Fenster wird synchron zum Klick geöffnet, damit Browser-Popup-Blocker
+  // die spätere Weiterleitung nach dem API-Aufruf nicht verhindern.
+  const dialfireWindow = window.open("about:blank", "_blank");
+  if (dialfireWindow) {
+    dialfireWindow.opener = null;
+    dialfireWindow.document.title = "Dialfire wird vorbereitet";
+    dialfireWindow.document.body.innerHTML = "<p style='font-family:sans-serif;padding:24px'>Dialfire wird vorbereitet …</p>";
+  }
+
+  const button = document.getElementById("dialfireCallBtn");
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Dialfire wird vorbereitet …";
+  }
+
+  try {
+    // Aktuelle Formularwerte zuerst speichern, damit der n8n-Workflow stets
+    // den gerade sichtbaren und bestätigten Datenstand aus der API erhält.
+    const savedLead = await apiRequest(`/leads/${leadId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        lead_name: leadName,
+        contact_person: contactPerson,
+        email,
+        phone,
+        call_notes: callNotes
+      })
+    });
+    Object.assign(lead, savedLead || {}, { lead_name: leadName, contact_person: contactPerson, email, phone, call_notes: callNotes });
+
+    const result = await apiRequest(`/leads/${leadId}/dialfire/prepare`, {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+
+    Object.assign(lead, {
+      dialfire_contact_id: result?.dialfire_contact_id || lead.dialfire_contact_id,
+      dialfire_campaign_id: result?.campaign_id || lead.dialfire_campaign_id,
+      dialfire_task_name: result?.task_name || lead.dialfire_task_name,
+      dialfire_external_ref: result?.external_ref || lead.dialfire_external_ref,
+      dialfire_last_status: "prepared",
+      dialfire_call_requested_at: result?.requested_at || new Date().toISOString(),
+      dialfire_call_requested_by: currentUser?.email || "dashboard",
+      dialfire_last_error: null
+    });
+
+    addTimelineEntry(
+      Number(leadId),
+      "Dialfire vorbereitet",
+      `Kontakt ${contactPerson || leadName} wurde für den Anruf an Dialfire übergeben.`
+    );
+
+    const openUrl = String(result?.open_url || "").trim();
+    if (openUrl && dialfireWindow) {
+      dialfireWindow.location.replace(openUrl);
+    } else if (openUrl) {
+      window.open(openUrl, "_blank", "noopener,noreferrer");
+    } else {
+      dialfireWindow?.close();
+      showToast("Kontakt wurde übergeben, aber die Dialfire-URL fehlt.", "error");
+    }
+
+    renderDrawer(leadId);
+    renderLeadTable();
+    showToast("Kontakt wurde an Dialfire übergeben.", "success");
+  } catch (error) {
+    dialfireWindow?.close();
+    showToast(`Dialfire konnte nicht geöffnet werden: ${error.message}`, "error");
+  } finally {
+    const currentLead = leads.find(item => Number(item.id) === Number(leadId));
+    syncDialfireCallButton(currentLead || lead);
+  }
+}
+
 
 // ─────────────────────────────────────────────────────────────
 // TELEFONISCHE KONTAKTFREIGABE SPEICHERN
@@ -2619,6 +2773,24 @@ function buildLeadTimelineEvents(lead) {
     lead.pitchlane_first_finished_at || lead.pitchlane_last_finished_at
   );
 
+  addTimelineEvent(
+    events,
+    "Dialfire vorbereitet",
+    "Kontakt wurde für einen Dialfire-Anruf bereitgestellt.",
+    lead.dialfire_call_requested_at
+  );
+
+  if (lead.dialfire_last_called_at) {
+    const duration = Number(lead.dialfire_call_duration_seconds || 0);
+    const resultLabel = [lead.dialfire_last_status, lead.dialfire_status_detail].filter(Boolean).join(" / ") || "Anruf abgeschlossen";
+    addTimelineEvent(
+      events,
+      "Dialfire-Anruf",
+      `${resultLabel}${duration ? ` · ${duration} Sekunden` : ""}${lead.dialfire_agent ? ` · Agent: ${lead.dialfire_agent}` : ""}`,
+      lead.dialfire_last_called_at
+    );
+  }
+
   return events
     .filter(event => event && (event.created_at || event.timestamp))
     .sort((a, b) => new Date(a.created_at || a.timestamp) - new Date(b.created_at || b.timestamp));
@@ -2954,6 +3126,7 @@ function renderDrawer(leadId) {
   const vfSection = document.getElementById("vfCallApprovalSection");
   if (vfSection) vfSection.classList.toggle("hidden", !isVFCompany);
   syncCompany3ResendButton(lead);
+  syncDialfireCallButton(lead);
 
   const callApprovedLabel = document.getElementById("callApprovedLabel");
   const k1CallApprovalHint = document.getElementById("k1CallApprovalHint");
