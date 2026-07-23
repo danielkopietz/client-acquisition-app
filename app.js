@@ -53,6 +53,10 @@ function usesAdvancedManufacturingScan() {
   return isViralityFilmsCompany() || isRC360Company();
 }
 
+function usesImplisenseSerperDiscoveryScan() {
+  return isKopietzCompany() || usesAdvancedManufacturingScan();
+}
+
 function usesSharedSalesCrm() {
   return isKopietzCompany() || isViralityFilmsCompany() || isCompany4RecruitingCompany() || isRC360Company();
 }
@@ -529,8 +533,10 @@ async function startScan() {
 
   if (!industry || !region) {
     showToast(
-      usesAdvancedManufacturingScan()
-        ? "Bitte Branche und Bundesland auswählen."
+      usesImplisenseSerperDiscoveryScan()
+        ? (isKopietzCompany()
+            ? "Bitte Zielgruppe und Bundesland auswählen."
+            : "Bitte Branche und Bundesland auswählen.")
         : "Bitte Branche und Region eingeben.",
       "error"
     );
@@ -558,13 +564,17 @@ async function startScan() {
     lead_limit: leadLimit
   };
 
-  // Company 3 und Company 6 nutzen die erweiterten Scan-Parameter.
-  if (usesAdvancedManufacturingScan()) {
+  // Company 1, Company 3 und Company 6 nutzen die erweiterten Scan-Parameter.
+  if (usesImplisenseSerperDiscoveryScan()) {
     const city = (document.getElementById("vfCityInput")?.value || "").trim();
-    const minEmp = parseInt(document.getElementById("vfMinEmpInput")?.value, 10) || (isRC360Company() ? 1 : 51);
-    const maxEmp = parseInt(document.getElementById("vfMaxEmpInput")?.value, 10) || (isRC360Company() ? 100000 : 200);
+    const defaultMinEmployees = isViralityFilmsCompany() ? 51 : 1;
+    const defaultMaxEmployees = isViralityFilmsCompany() ? 200 : 100000;
+    const minEmp = parseInt(document.getElementById("vfMinEmpInput")?.value, 10) || defaultMinEmployees;
+    const maxEmp = parseInt(document.getElementById("vfMaxEmpInput")?.value, 10) || defaultMaxEmployees;
 
     if (minEmp > maxEmp) {
+      btn.disabled = false;
+      statusEl.classList.add("hidden");
       showToast("Mitarbeiter (von) darf nicht größer als Mitarbeiter (bis) sein.", "error");
       return;
     }
@@ -572,7 +582,7 @@ async function startScan() {
     if (city) scanBody.city = city;
     scanBody.min_employees = minEmp;
     scanBody.max_employees = maxEmp;
-    scanBody.source = isRC360Company() ? "implisense_serper" : "apollo_outscraper";
+    scanBody.source = isViralityFilmsCompany() ? "apollo_outscraper" : "implisense_serper";
   }
 
   try {
@@ -3327,30 +3337,38 @@ function setupUI() {
     setText("userEmail", currentUser.email || "");
   }
 
-  // VF-Scan-Formular: erweiterte Felder nur für Company 3 einblenden
-  if (usesAdvancedManufacturingScan()) {
+  // Eigene Discovery-Zielgruppen und erweiterte Filter nur für Company 1, 3 und 6.
+  if (usesImplisenseSerperDiscoveryScan()) {
     injectVFScanFields();
   }
 }
 
 function injectVFScanFields() {
-  const industryOptions = [
-    "Maschinenbau",
-    "Automotive / Zulieferer",
-    "Metallverarbeitung",
-    "Elektrotechnik",
-    "Kunststofftechnik",
-    "Logistik / Transport",
-    "Bauunternehmen",
-    "Handwerk / Handwerksbetrieb",
-    "Lebensmittelproduktion",
-    "Pharmaindustrie",
-    "Medizintechnik",
-    "IT-Dienstleister",
-    "Unternehmensberatung",
-    "Immobilien",
-    "Einzelhandel"
-  ];
+  const industryOptions = isKopietzCompany()
+    ? [
+        "Social Media Agenturen",
+        "Webdesign Agenturen",
+        "Personaldienstleister",
+        "SEO Agenturen",
+        "Recruiting-Agenturen"
+      ]
+    : [
+        "Maschinenbau",
+        "Automotive / Zulieferer",
+        "Metallverarbeitung",
+        "Elektrotechnik",
+        "Kunststofftechnik",
+        "Logistik / Transport",
+        "Bauunternehmen",
+        "Handwerk / Handwerksbetrieb",
+        "Lebensmittelproduktion",
+        "Pharmaindustrie",
+        "Medizintechnik",
+        "IT-Dienstleister",
+        "Unternehmensberatung",
+        "Immobilien",
+        "Einzelhandel"
+      ];
   const regionOptions = [
     "Baden-Württemberg",
     "Bayern",
@@ -3403,10 +3421,14 @@ function injectVFScanFields() {
     current.replaceWith(select);
   };
 
-  replaceWithSelect("industryInput", industryOptions, "Maschinenbau");
+  const defaultIndustry = isKopietzCompany() ? "Social Media Agenturen" : "Maschinenbau";
+  const defaultMinEmployees = isViralityFilmsCompany() ? 51 : 1;
+  const defaultMaxEmployees = isViralityFilmsCompany() ? 200 : 100000;
+
+  replaceWithSelect("industryInput", industryOptions, defaultIndustry);
   replaceWithSelect("regionInput", regionOptions, "Bayern");
-  replaceWithSelect("vfMinEmpInput", minEmployeeOptions, isRC360Company() ? 1 : 51);
-  replaceWithSelect("vfMaxEmpInput", maxEmployeeOptions, isRC360Company() ? 100000 : 200);
+  replaceWithSelect("vfMinEmpInput", minEmployeeOptions, defaultMinEmployees);
+  replaceWithSelect("vfMaxEmpInput", maxEmployeeOptions, defaultMaxEmployees);
 
   const extRow = document.getElementById("vfScanExtended");
   if (extRow) extRow.classList.remove("hidden");
@@ -3424,14 +3446,18 @@ function injectVFScanFields() {
   const minLabel = document.querySelector("#vfMinEmpInput")?.closest(".form-group")?.querySelector("label");
   const maxLabel = document.querySelector("#vfMaxEmpInput")?.closest(".form-group")?.querySelector("label");
 
-  if (industryLabel) industryLabel.textContent = "Branche";
+  if (industryLabel) industryLabel.textContent = isKopietzCompany() ? "Zielgruppe" : "Branche";
   if (regionLabel) regionLabel.textContent = "Bundesland";
   if (leadLimitLabel) leadLimitLabel.textContent = "Anzahl Leads";
   if (minLabel) minLabel.textContent = "Mitarbeiter (von)";
   if (maxLabel) maxLabel.textContent = "Mitarbeiter (bis)";
 
   const scanSub = document.querySelector(".scan-card .card-sub");
-  if (scanSub) scanSub.textContent = "Branche und Bundesland auswählen, optional eine Stadt eingeben und passende Unternehmen finden.";
+  if (scanSub) {
+    scanSub.textContent = isKopietzCompany()
+      ? "Zielgruppe und Bundesland auswählen, optional eine Stadt eingeben und passende Agenturen oder Personaldienstleister finden."
+      : "Branche und Bundesland auswählen, optional eine Stadt eingeben und passende Unternehmen finden.";
+  }
 }
 
 function bindEvents() {
