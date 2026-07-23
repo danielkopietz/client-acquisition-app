@@ -317,6 +317,8 @@ let activeArchiveMode = false;
 let selectedAnalysisLeadIds = [];
 let isStartingSelectedAnalysis = false;
 let isSavingCallApproval = false;
+let k1LeadSortKey = "created_at";
+let k1LeadSortDirection = "desc";
 
 // ─────────────────────────────────────────────────────────────
 // AUTH0 INIT
@@ -2215,10 +2217,511 @@ async function startSelectedAnalysis() {
   }
 }
 
+function normalizeK1LeadFilterText(value) {
+  return String(value || "").trim().toLocaleLowerCase("de-DE");
+}
+
+function getK1LeadWebsiteScore(lead) {
+  const candidates = [lead?.website_score, lead?.pagespeed_score];
+  const value = candidates.find(candidate => candidate !== null && candidate !== undefined && candidate !== "");
+  if (value === undefined) return null;
+  const score = Number(value);
+  return Number.isFinite(score) ? score : null;
+}
+
+function getK1LeadOpportunityScore(lead) {
+  if (lead?.opportunity_score === null || lead?.opportunity_score === undefined || lead?.opportunity_score === "") {
+    return null;
+  }
+  const score = Number(lead.opportunity_score);
+  return Number.isFinite(score) ? score : null;
+}
+
+function getK1LeadCreatedAt(lead) {
+  const timestamp = Date.parse(lead?.created_at || "");
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function getK1LeadPriorityRank(priority) {
+  const normalized = normalizeK1LeadFilterText(priority);
+  return {
+    a: 3,
+    high: 3,
+    b: 2,
+    medium: 2,
+    c: 1,
+    low: 1
+  }[normalized] || 0;
+}
+
+function getK1LeadSortValue(lead, key) {
+  const contact = getLeadContactPerson(lead);
+  const email = getLeadEmail(lead);
+
+  switch (key) {
+    case "lead_name":
+      return lead?.lead_name || lead?.company_name || "";
+    case "contact":
+      return `${contact || ""} ${email || ""}`.trim();
+    case "website_score":
+      return getK1LeadWebsiteScore(lead);
+    case "instagram_found":
+      return lead?.instagram_found === true ? 1 : 0;
+    case "ads_found":
+      return lead?.ads_found === true ? 1 : 0;
+    case "opportunity_score":
+      return getK1LeadOpportunityScore(lead);
+    case "status":
+      return formatStatusLabel(getLeadDisplayStatus(lead));
+    case "priority":
+      return getK1LeadPriorityRank(lead?.priority);
+    case "created_at":
+    default:
+      return getK1LeadCreatedAt(lead);
+  }
+}
+
+function compareK1Leads(a, b) {
+  const aValue = getK1LeadSortValue(a, k1LeadSortKey);
+  const bValue = getK1LeadSortValue(b, k1LeadSortKey);
+  const aMissing = aValue === null || aValue === undefined || aValue === "";
+  const bMissing = bValue === null || bValue === undefined || bValue === "";
+
+  // Unvollständige Werte bleiben unabhängig von der Sortierrichtung am Ende.
+  if (aMissing !== bMissing) return aMissing ? 1 : -1;
+
+  let comparison = 0;
+  if (!aMissing && typeof aValue === "number" && typeof bValue === "number") {
+    comparison = aValue - bValue;
+  } else if (!aMissing) {
+    comparison = String(aValue).localeCompare(String(bValue), "de", {
+      sensitivity: "base",
+      numeric: true
+    });
+  }
+
+  if (comparison !== 0) {
+    return k1LeadSortDirection === "asc" ? comparison : -comparison;
+  }
+
+  const idComparison = Number(a?.id || 0) - Number(b?.id || 0);
+  return k1LeadSortDirection === "asc" ? idComparison : -idComparison;
+}
+
+function setK1LeadSort(key, direction) {
+  if (!isKopietzCompany()) return;
+  k1LeadSortKey = key || "created_at";
+  k1LeadSortDirection = direction === "asc" ? "asc" : "desc";
+  renderLeadTable();
+}
+
+function getK1LeadSortLabel() {
+  const label = {
+    created_at: "Erstellt",
+    lead_name: "Unternehmen",
+    contact: "Kontakt",
+    website_score: "Website",
+    instagram_found: "Instagram",
+    ads_found: "Meta Ads",
+    opportunity_score: "Sales Potential",
+    status: "Status",
+    priority: "Priorität"
+  }[k1LeadSortKey] || "Erstellt";
+  return `${label} ${k1LeadSortDirection === "asc" ? "↑" : "↓"}`;
+}
+
+function updateK1LeadSortControls() {
+  if (!isKopietzCompany()) return;
+
+  const sortSelect = document.getElementById("k1LeadSortSelect");
+  const sortState = document.getElementById("k1LeadSortState");
+  const sortValue = `${k1LeadSortKey}:${k1LeadSortDirection}`;
+  if (sortSelect) {
+    sortSelect.value = [...sortSelect.options].some(option => option.value === sortValue) ? sortValue : "";
+  }
+  if (sortState) sortState.textContent = `Sortierung: ${getK1LeadSortLabel()}`;
+
+  document.querySelectorAll(".leads-table thead th[data-k1-sort-key]").forEach(header => {
+    const isActive = header.dataset.k1SortKey === k1LeadSortKey;
+    header.classList.toggle("k1-sort-active", isActive);
+    header.dataset.k1SortDirection = isActive ? k1LeadSortDirection : "";
+    if (isActive) {
+      header.setAttribute("aria-sort", k1LeadSortDirection === "asc" ? "ascending" : "descending");
+    } else {
+      header.removeAttribute("aria-sort");
+    }
+  });
+}
+
+function syncK1LeadColumnFilterOptions() {
+  if (!isKopietzCompany()) return;
+
+  const statusSelect = document.getElementById("k1ColumnStatusFilter");
+  const prioritySelect = document.getElementById("k1ColumnPriorityFilter");
+
+  if (statusSelect) {
+    const selected = statusSelect.value;
+    const statuses = [...new Set(leads.map(getLeadDisplayStatus).filter(Boolean))]
+      .sort((a, b) => formatStatusLabel(a).localeCompare(formatStatusLabel(b), "de"));
+    statusSelect.innerHTML = [
+      '<option value="">Alle Status</option>',
+      ...statuses.map(status => `<option value="${esc(status)}">${esc(formatStatusLabel(status))}</option>`)
+    ].join("");
+    statusSelect.value = statuses.includes(selected) ? selected : "";
+  }
+
+  if (prioritySelect) {
+    const selected = prioritySelect.value;
+    const priorities = [...new Set(leads.map(lead => String(lead?.priority || "").trim()).filter(Boolean))]
+      .sort((a, b) => {
+        const rankDifference = getK1LeadPriorityRank(b) - getK1LeadPriorityRank(a);
+        return rankDifference || a.localeCompare(b, "de");
+      });
+    prioritySelect.innerHTML = [
+      '<option value="">Alle Prioritäten</option>',
+      ...priorities.map(priority => `<option value="${esc(priority)}">${esc(formatPriorityLabel(priority))}</option>`)
+    ].join("");
+    prioritySelect.value = priorities.includes(selected) ? selected : "";
+  }
+}
+
+function resetK1LeadTableFilters() {
+  if (!isKopietzCompany()) return;
+
+  [
+    "searchInput",
+    "priorityFilter",
+    "statusFilter",
+    "k1LeadListFilter",
+    "k1CompanyColumnFilter",
+    "k1ContactColumnFilter",
+    "k1WebsiteColumnFilter",
+    "k1InstagramColumnFilter",
+    "k1AdsColumnFilter",
+    "k1PotentialColumnFilter",
+    "k1ColumnStatusFilter",
+    "k1ColumnPriorityFilter"
+  ].forEach(id => {
+    const element = document.getElementById(id);
+    if (element) element.value = "";
+  });
+
+  activeK1LeadListKey = "";
+  activeQuickFilter = "all";
+  k1LeadSortKey = "created_at";
+  k1LeadSortDirection = "desc";
+  document.querySelectorAll(".qf-btn").forEach(button => {
+    button.classList.toggle("active", button.dataset.filter === "all");
+  });
+  selectedAnalysisLeadIds = [];
+  renderAll();
+}
+
+function ensureK1LeadTableStyles() {
+  if (!isKopietzCompany() || document.getElementById("k1LeadTableFilterStyles")) return;
+  const style = document.createElement("style");
+  style.id = "k1LeadTableFilterStyles";
+  style.textContent = `
+    .k1-lead-table-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 10px 0 12px;
+      padding: 10px 12px;
+      border: 1px solid var(--border, #e9e5e1);
+      border-radius: 12px;
+      background: #fff;
+    }
+    .k1-lead-table-toolbar-left,
+    .k1-lead-table-toolbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .k1-lead-table-toolbar label,
+    .k1-lead-sort-state,
+    .k1-lead-result-count {
+      color: var(--muted, #706d69);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .k1-lead-table-toolbar select {
+      min-height: 36px;
+      border: 1px solid var(--border, #ded9d4);
+      border-radius: 9px;
+      background: #fff;
+      padding: 0 32px 0 10px;
+      color: var(--text, #181818);
+      font: inherit;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .leads-table thead th.k1-sortable-header {
+      cursor: pointer;
+      user-select: none;
+      transition: color .15s ease, background .15s ease;
+    }
+    .leads-table thead th.k1-sortable-header:hover,
+    .leads-table thead th.k1-sortable-header:focus-visible,
+    .leads-table thead th.k1-sort-active {
+      color: var(--accent, #ff4a17);
+      background: rgba(255, 74, 23, .045);
+      outline: none;
+    }
+    .leads-table thead th.k1-sortable-header::after {
+      content: " ↕";
+      opacity: .38;
+      font-size: 11px;
+    }
+    .leads-table thead th.k1-sort-active[data-k1-sort-direction="asc"]::after {
+      content: " ↑";
+      opacity: 1;
+    }
+    .leads-table thead th.k1-sort-active[data-k1-sort-direction="desc"]::after {
+      content: " ↓";
+      opacity: 1;
+    }
+    #k1LeadColumnFilters th {
+      padding: 8px 5px;
+      background: #fbfaf9;
+      vertical-align: middle;
+    }
+    #k1LeadColumnFilters input,
+    #k1LeadColumnFilters select {
+      box-sizing: border-box;
+      width: 100%;
+      min-width: 86px;
+      height: 34px;
+      border: 1px solid var(--border, #ded9d4);
+      border-radius: 8px;
+      background: #fff;
+      padding: 0 8px;
+      color: var(--text, #181818);
+      font-size: 11px;
+      font-weight: 600;
+    }
+    #k1LeadColumnFilters input {
+      min-width: 145px;
+    }
+    #k1LeadColumnFilters input:focus,
+    #k1LeadColumnFilters select:focus,
+    .k1-lead-table-toolbar select:focus {
+      border-color: var(--accent, #ff4a17);
+      outline: 2px solid rgba(255, 74, 23, .12);
+    }
+    @media (max-width: 900px) {
+      .k1-lead-table-toolbar {
+        align-items: stretch;
+        flex-direction: column;
+      }
+      .k1-lead-table-toolbar-left,
+      .k1-lead-table-toolbar-right {
+        justify-content: space-between;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+function ensureK1LeadTableControls(selectionEnabled) {
+  if (!isKopietzCompany()) return;
+
+  const tbody = document.getElementById("leadTableBody");
+  const table = tbody?.closest("table");
+  const thead = table?.querySelector("thead");
+  const headerRow = thead?.querySelector("tr:not(#k1LeadColumnFilters)");
+  if (!tbody || !table || !thead || !headerRow) return;
+
+  ensureK1LeadTableStyles();
+
+  if (!document.getElementById("k1LeadTableToolbar")) {
+    const toolbar = document.createElement("div");
+    toolbar.id = "k1LeadTableToolbar";
+    toolbar.className = "k1-lead-table-toolbar";
+    toolbar.innerHTML = `
+      <div class="k1-lead-table-toolbar-left">
+        <label for="k1LeadSortSelect">Sortieren</label>
+        <select id="k1LeadSortSelect">
+          <option value="" disabled>Spaltensortierung aktiv</option>
+          <option value="created_at:desc">Neueste zuerst</option>
+          <option value="created_at:asc">Älteste zuerst</option>
+          <option value="opportunity_score:desc">Höchstes Sales Potential</option>
+          <option value="lead_name:asc">Unternehmen A–Z</option>
+          <option value="lead_name:desc">Unternehmen Z–A</option>
+        </select>
+        <span id="k1LeadSortState" class="k1-lead-sort-state"></span>
+      </div>
+      <div class="k1-lead-table-toolbar-right">
+        <span id="k1LeadResultCount" class="k1-lead-result-count"></span>
+        <button id="k1ResetLeadFiltersBtn" type="button" class="btn btn-ghost btn-sm">Filter zurücksetzen</button>
+      </div>
+    `;
+    table.parentElement?.insertBefore(toolbar, table);
+
+    toolbar.querySelector("#k1LeadSortSelect")?.addEventListener("change", event => {
+      const [key, direction] = String(event.target.value || "created_at:desc").split(":");
+      setK1LeadSort(key, direction);
+    });
+    toolbar.querySelector("#k1ResetLeadFiltersBtn")?.addEventListener("click", resetK1LeadTableFilters);
+  }
+
+  const headers = [...headerRow.children];
+  const headerSortKeys = {
+    1: "lead_name",
+    2: "contact",
+    3: "website_score",
+    4: "instagram_found",
+    5: "ads_found",
+    6: "opportunity_score",
+    7: "status",
+    8: "priority"
+  };
+
+  Object.entries(headerSortKeys).forEach(([index, key]) => {
+    const header = headers[Number(index)];
+    if (!header || header.dataset.k1SortBound === "true") return;
+    header.dataset.k1SortBound = "true";
+    header.dataset.k1SortKey = key;
+    header.classList.add("k1-sortable-header");
+    header.tabIndex = 0;
+    header.title = "Klicken zum Sortieren";
+
+    const activateSort = () => {
+      const defaultDirection = ["lead_name", "contact", "status"].includes(key) ? "asc" : "desc";
+      const nextDirection = k1LeadSortKey === key
+        ? (k1LeadSortDirection === "asc" ? "desc" : "asc")
+        : defaultDirection;
+      setK1LeadSort(key, nextDirection);
+    };
+
+    header.addEventListener("click", activateSort);
+    header.addEventListener("keydown", event => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      activateSort();
+    });
+  });
+
+  let filterRow = document.getElementById("k1LeadColumnFilters");
+  if (!filterRow) {
+    filterRow = document.createElement("tr");
+    filterRow.id = "k1LeadColumnFilters";
+    filterRow.innerHTML = `
+      <th class="k1-selection-filter-cell"></th>
+      <th><input id="k1CompanyColumnFilter" type="search" placeholder="Firma, Ort, Branche" aria-label="Unternehmen, Ort oder Branche filtern"></th>
+      <th><input id="k1ContactColumnFilter" type="search" placeholder="Name oder E-Mail" aria-label="Kontakt filtern"></th>
+      <th>
+        <select id="k1WebsiteColumnFilter" aria-label="Website-Score filtern">
+          <option value="">Alle</option>
+          <option value="with">Bewertet</option>
+          <option value="gte80">80–100 %</option>
+          <option value="gte60">60–79 %</option>
+          <option value="lt60">Unter 60 %</option>
+          <option value="none">Nicht bewertet</option>
+        </select>
+      </th>
+      <th>
+        <select id="k1InstagramColumnFilter" aria-label="Instagram filtern">
+          <option value="">Alle</option>
+          <option value="found">Gefunden</option>
+          <option value="missing">Nicht gefunden</option>
+        </select>
+      </th>
+      <th>
+        <select id="k1AdsColumnFilter" aria-label="Meta Ads filtern">
+          <option value="">Alle</option>
+          <option value="active">Aktiv</option>
+          <option value="none">Keine Ads</option>
+        </select>
+      </th>
+      <th>
+        <select id="k1PotentialColumnFilter" aria-label="Sales Potential filtern">
+          <option value="">Alle</option>
+          <option value="gte70">70–100 %</option>
+          <option value="gte45">45–69 %</option>
+          <option value="lt45">Unter 45 %</option>
+          <option value="none">Nicht bewertet</option>
+        </select>
+      </th>
+      <th><select id="k1ColumnStatusFilter" aria-label="Status filtern"><option value="">Alle Status</option></select></th>
+      <th><select id="k1ColumnPriorityFilter" aria-label="Priorität filtern"><option value="">Alle Prioritäten</option></select></th>
+      <th></th>
+    `;
+    thead.appendChild(filterRow);
+
+    filterRow.querySelectorAll("input").forEach(input => input.addEventListener("input", renderLeadTable));
+    filterRow.querySelectorAll("select").forEach(select => select.addEventListener("change", renderLeadTable));
+  }
+
+  filterRow.querySelector(".k1-selection-filter-cell")?.classList.toggle("hidden", !selectionEnabled);
+  syncK1LeadColumnFilterOptions();
+  updateK1LeadSortControls();
+}
+
+function leadMatchesK1ColumnFilters(lead) {
+  if (!isKopietzCompany()) return true;
+
+  const companySearch = normalizeK1LeadFilterText(document.getElementById("k1CompanyColumnFilter")?.value);
+  const contactSearch = normalizeK1LeadFilterText(document.getElementById("k1ContactColumnFilter")?.value);
+  const websiteFilter = document.getElementById("k1WebsiteColumnFilter")?.value || "";
+  const instagramFilter = document.getElementById("k1InstagramColumnFilter")?.value || "";
+  const adsFilter = document.getElementById("k1AdsColumnFilter")?.value || "";
+  const potentialFilter = document.getElementById("k1PotentialColumnFilter")?.value || "";
+  const statusFilter = document.getElementById("k1ColumnStatusFilter")?.value || "";
+  const priorityFilter = document.getElementById("k1ColumnPriorityFilter")?.value || "";
+
+  const companyHaystack = normalizeK1LeadFilterText([
+    lead?.lead_name,
+    lead?.company_name,
+    lead?.city,
+    lead?.region,
+    lead?.industry
+  ].filter(Boolean).join(" "));
+  const contactHaystack = normalizeK1LeadFilterText([
+    getLeadContactPerson(lead),
+    getLeadEmail(lead),
+    lead?.phone,
+    lead?.managing_director
+  ].filter(Boolean).join(" "));
+
+  if (companySearch && !companyHaystack.includes(companySearch)) return false;
+  if (contactSearch && !contactHaystack.includes(contactSearch)) return false;
+
+  const websiteScore = getK1LeadWebsiteScore(lead);
+  if (websiteFilter === "with" && websiteScore === null) return false;
+  if (websiteFilter === "gte80" && !(websiteScore !== null && websiteScore >= 80)) return false;
+  if (websiteFilter === "gte60" && !(websiteScore !== null && websiteScore >= 60 && websiteScore < 80)) return false;
+  if (websiteFilter === "lt60" && !(websiteScore !== null && websiteScore < 60)) return false;
+  if (websiteFilter === "none" && websiteScore !== null) return false;
+
+  if (instagramFilter === "found" && lead?.instagram_found !== true) return false;
+  if (instagramFilter === "missing" && lead?.instagram_found === true) return false;
+  if (adsFilter === "active" && lead?.ads_found !== true) return false;
+  if (adsFilter === "none" && lead?.ads_found === true) return false;
+
+  const opportunityScore = getK1LeadOpportunityScore(lead);
+  if (potentialFilter === "gte70" && !(opportunityScore !== null && opportunityScore >= 70)) return false;
+  if (potentialFilter === "gte45" && !(opportunityScore !== null && opportunityScore >= 45 && opportunityScore < 70)) return false;
+  if (potentialFilter === "lt45" && !(opportunityScore !== null && opportunityScore < 45)) return false;
+  if (potentialFilter === "none" && opportunityScore !== null) return false;
+
+  if (statusFilter && getLeadDisplayStatus(lead) !== statusFilter) return false;
+  if (priorityFilter && String(lead?.priority || "") !== priorityFilter) return false;
+  return true;
+}
+
 function renderLeadTable() {
   const tbody = document.getElementById("leadTableBody");
-  let filtered = filterLeads();
   const selectionEnabled = canUseSelectedAnalysis() && !activeArchiveMode;
+  ensureK1LeadTableControls(selectionEnabled);
+  let filtered = filterLeads();
+
+  if (isKopietzCompany()) {
+    const countEl = document.getElementById("k1LeadResultCount");
+    if (countEl) countEl.textContent = `${filtered.length} von ${leads.length} Unternehmen`;
+  }
 
   renderSelectedAnalysisToolbar();
 
@@ -2384,7 +2887,7 @@ function filterLeads() {
   const statusVal = document.getElementById("statusFilter")?.value || "";
   const k1ListVal = isKopietzCompany() ? getK1SelectedLeadListKey() : "";
 
-  return leads.filter(l => {
+  const filtered = leads.filter(l => {
     const matchSearch = !search ||
       (l.lead_name || "").toLowerCase().includes(search) ||
       (l.contact_person || "").toLowerCase().includes(search) ||
@@ -2407,8 +2910,10 @@ function filterLeads() {
     else if (activeQuickFilter === "email-ready") matchFilter = !!(l.final_email || l.findymail_email || l.email);
     else if (activeQuickFilter === "video-ready") matchFilter = l.video_status === "completed" || l.video_status === "ready" || !!l.video_url;
 
-    return matchSearch && matchPriority && matchStatus && matchK1List && matchFilter;
+    return matchSearch && matchPriority && matchStatus && matchK1List && matchFilter && leadMatchesK1ColumnFilters(l);
   });
+
+  return isKopietzCompany() ? filtered.sort(compareK1Leads) : filtered;
 }
 
 let crmReminderTimer = null;
